@@ -1,11 +1,11 @@
 return PlaceObj('ModDef', {
 	'title', "JAZZ NoMaps",
 	'description', "Optional JAZZ package: truncated Legion AI, squad wiring and loot inject for vanilla HotDiamonds when jazz-maps is not enabled.\n\nInstall instead of jazz-maps:\n1. JAZZ Assets\n2. JAZZ Units\n3. JAZZ NoMaps\n4. JAZZ\n(+ JA3_CommonLib)\n\nDisable this mod when using jazz-maps. If both are enabled, NoMaps stays inactive.\n\nОпциональный пакет JAZZ: урезанный Legion AI, wiring отрядов и лут для vanilla HotDiamonds без jazz-maps.\nСтавить вместо maps. При включённом jazz-maps — no-op.",
-	'last_changes', "Initial: vanilla guardpost auto-regions (JAZZ_Auto_*), Major HQ A20, ErnieIsland maps-only disable, squad remap, loot inject (JAZZ-COMPAT-002).",
+	'last_changes', "LootDef packs JAZZ_NoMaps_Container_*; expanded squad remap; formal COMPAT-002 approval.",
 	'id', "7MsJ2Eq",
 	'author', "Kpoji4er",
 	'version_major', 0,
-	'version_minor', 1,
+	'version_minor', 2,
 	'version', 1,
 	'lua_revision', 233360,
 	'saved_with_revision', 366685,

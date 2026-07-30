@@ -97,14 +97,23 @@ end
 
 -- Vanilla / weak IDs → jazz EnemySquadDefs when present (units package).
 local SQUAD_REMAP = {
+	-- Legion
 	LegionAttackers_Balanced_Easy = "LegionAttackers_JazzBalanced_Easy_Assault",
 	LegionAttackers_Balanced = "LegionAttackers_JazzBalanced_Easy_Assault",
 	LegionRaidSquad = "LegionJAZZSquadT1",
 	LegionRaidSquad_Easy = "LegionJAZZSquadT1",
 	LegionDefenders_Easy = "LegionGlobalAI_Garrison",
 	LegionDefenders_Mobile_Easy = "LegionGlobalAI_Patrol",
+	LegionDefenders_Shooters_Easy = "LegionAttackers_Balanced_Easy_Assault",
 	FortressDefenders = "LegionGlobalAI_Garrison",
 	FortressPierre = "LegionJAZZSquadT2",
+	LegionHeavyTroops = "LegionHeavyTroops",
+	-- Army / Adonis / Rebel: same-id jazz-units overrides preferred; remap only when jazz alt exists
+	ArmyAttackers_Balanced_Hard = "ArmyAttackers_Balanced_Hard",
+	ArmySpecOps = "ArmySpecOps",
+	Adonis_Troops_Assault_Light = "Adonis_Troops_Assault_Light",
+	Adonis_Troops_Assault_Heavy = "Adonis_Troops_Assault_Heavy",
+	RebelRaiders = "RebelRaiders",
 }
 
 local ROLE_LISTS = {
@@ -118,7 +127,13 @@ local ROLE_LISTS = {
 	major = { "LegionJAZZSquadT3", "LegionHeavyTroops" },
 }
 
-local LOOT_POOLS = {
+local LOOT_PACKS = {
+	{ chance = 35, id = "JAZZ_NoMaps_Container_Ammo" },
+	{ chance = 20, id = "JAZZ_NoMaps_Container_Common" },
+	{ chance = 15, id = "JAZZ_NoMaps_Container_Weapon" },
+}
+
+local LOOT_POOLS_FALLBACK = {
 	common = { "Meds", "FragGrenade", "SmokeGrenade", "Lockpick", "Wirecutter" },
 	ammo = { "_9mm_Basic", "_556_Basic", "_762NATO_Basic", "_762WP_Basic", "_12gauge_Buckshot" },
 	weapons = { "AK47", "MP5", "UZI", "Galil", "FAMAS", "Glock18" },
@@ -413,6 +428,30 @@ local function lPickLootClass(pool, seed_key)
 	return valid[idx]
 end
 
+local function lAddItemsToContainer(container, items)
+	if not container or not items then
+		return 0
+	end
+	local n = 0
+	for _, item in ipairs(items) do
+		if item then
+			container:AddItem("Inventory", item)
+			n = n + 1
+		end
+	end
+	return n
+end
+
+local function lInjectFromLootDef(container, loot_def_id, seed_key)
+	local def = LootDefs and LootDefs[loot_def_id]
+	if not def or not def.GenerateLoot then
+		return 0
+	end
+	local items = {}
+	def:GenerateLoot(container, container, InteractionRand(nil, seed_key), items)
+	return lAddItemsToContainer(container, items)
+end
+
 local function lInjectContainerLoot()
 	if not lShouldRun() or not gv_CurrentSectorId then
 		return
@@ -438,28 +477,43 @@ local function lInjectContainerLoot()
 		root.injected[inject_key] = true
 
 		local roll = InteractionRand(100, "JAZZ_NoMapsLoot_" .. inject_key)
-		local class
-		if roll < 35 then
-			class = lPickLootClass(LOOT_POOLS.ammo, "JAZZ_NoMapsAmmo_" .. inject_key)
-		elseif roll < 55 then
-			class = lPickLootClass(LOOT_POOLS.common, "JAZZ_NoMapsCommon_" .. inject_key)
-		elseif roll < 70 then
-			class = lPickLootClass(LOOT_POOLS.weapons, "JAZZ_NoMapsWeapon_" .. inject_key)
-		end
-		if class then
-			local item = PlaceInventoryItem(class)
-			if item then
-				if IsKindOf(item, "InventoryStack") then
-					item.Amount = Max(1, InteractionRand(6, "JAZZ_NoMapsStack_" .. inject_key) + 2)
+		local cum = 0
+		local used_pack = false
+		for _, pack in ipairs(LOOT_PACKS) do
+			cum = cum + pack.chance
+			if roll < cum then
+				local n = lInjectFromLootDef(container, pack.id, "JAZZ_NoMapsPack_" .. inject_key)
+				if n > 0 then
+					count = count + n
+					used_pack = true
 				end
-				container:AddItem("Inventory", item)
-				count = count + 1
+				break
+			end
+		end
+		-- Fallback if LootDefs not ready yet
+		if not used_pack and roll < 70 then
+			local pool = LOOT_POOLS_FALLBACK.ammo
+			if roll >= 55 then
+				pool = LOOT_POOLS_FALLBACK.weapons
+			elseif roll >= 35 then
+				pool = LOOT_POOLS_FALLBACK.common
+			end
+			local class = lPickLootClass(pool, "JAZZ_NoMapsFallback_" .. inject_key)
+			if class then
+				local item = PlaceInventoryItem(class)
+				if item then
+					if IsKindOf(item, "InventoryStack") then
+						item.Amount = Max(1, InteractionRand(6, "JAZZ_NoMapsStack_" .. inject_key) + 2)
+					end
+					container:AddItem("Inventory", item)
+					count = count + 1
+				end
 			end
 		end
 		::next_container::
 	end
 	if count > 0 then
-		lLog("injected loot into " .. count .. " containers in " .. tostring(sector_key))
+		lLog("injected loot items=" .. count .. " in " .. tostring(sector_key))
 	end
 end
 
