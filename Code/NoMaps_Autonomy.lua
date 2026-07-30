@@ -108,11 +108,20 @@ local SQUAD_REMAP = {
 	FortressDefenders = "LegionGlobalAI_Garrison",
 	FortressPierre = "LegionJAZZSquadT2",
 	LegionHeavyTroops = "LegionHeavyTroops",
-	-- Army / Adonis / Rebel: same-id jazz-units overrides preferred; remap only when jazz alt exists
-	ArmyAttackers_Balanced_Hard = "ArmyAttackers_Balanced_Hard",
-	ArmySpecOps = "ArmySpecOps",
+	LegionAttackers_Shock_Easy = "LegionAttackers_Shock_Easy",
+	LegionAttackers_Marksmen_Easy = "LegionAttackers_Marksmen_Easy",
+	LegionAttackers_Ordnance_Easy = "LegionAttackers_Ordnance_Easy",
+	-- WorldFlip (jazz override lists — ensure present)
 	Adonis_Troops_Assault_Light = "Adonis_Troops_Assault_Light",
 	Adonis_Troops_Assault_Heavy = "Adonis_Troops_Assault_Heavy",
+	Adonis_Heavy_Troops = "Adonis_Heavy_Troops",
+	Adonis_Heavy_Troops_Alt = "Adonis_Heavy_Troops_Alt",
+	Adonis_SpecOps_Heavy = "Adonis_SpecOps_Heavy",
+	ArmySpecOps = "ArmySpecOps",
+	ArmySpecOps_alt = "ArmySpecOps_alt",
+	ArmyAttackers_Balanced_Hard = "ArmyAttackers_Balanced_Hard",
+	ArmyAttackers_Balanced_Alt = "ArmyAttackers_Balanced_Alt",
+	-- Army / Adonis / Rebel: same-id jazz-units overrides preferred; remap only when jazz alt exists
 	RebelRaiders = "RebelRaiders",
 }
 
@@ -414,6 +423,31 @@ local function lInstallGenerateEnemySquadWrapper()
 	end
 end
 
+-- Ensure WorldFlip satellite lanes stay valid on vanilla geography under nomaps.
+local function lInstallWorldFlipGuard()
+	if rawget(_G, "g_JAZZ_NoMapsWorldFlipGuarded") then
+		return
+	end
+	local base = rawget(_G, "SpawnWorldFlipAttackSquads")
+	if type(base) ~= "function" then
+		return
+	end
+	g_JAZZ_NoMapsWorldFlipGuarded = true
+	g_JAZZ_NoMapsBaseWorldFlip = base
+	function SpawnWorldFlipAttackSquads()
+		if not lShouldRun() then
+			return g_JAZZ_NoMapsBaseWorldFlip()
+		end
+		-- jazz WorldFlipSpawnUnits already uses vanilla sector IDs + jazz-units squad defs;
+		-- re-install GenerateEnemySquad wrap then run (covers late WorldFlip after reload).
+		lInstallGenerateEnemySquadWrapper()
+		local ok, err = pcall(g_JAZZ_NoMapsBaseWorldFlip)
+		if not ok then
+			lLog("WorldFlip failed: " .. tostring(err))
+		end
+	end
+end
+
 local function lPickLootClass(pool, seed_key)
 	local valid = {}
 	for _, class in ipairs(pool or empty_table) do
@@ -565,6 +599,7 @@ function JAZZ_NoMapsBootstrap(force)
 
 	root.active = true
 	lInstallGenerateEnemySquadWrapper()
+	lInstallWorldFlipGuard()
 	lDisableMapsOnlyRegions(root)
 
 	local major_hq = lResolveMajorHQ()
@@ -626,6 +661,7 @@ JAZZ_StandaloneNoMapsIsActive = JAZZ_NoMapsIsActive
 function OnMsg.ModsReloaded()
 	if lShouldRun() then
 		lInstallGenerateEnemySquadWrapper()
+		lInstallWorldFlipGuard()
 	end
 end
 
