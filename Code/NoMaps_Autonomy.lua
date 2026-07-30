@@ -97,31 +97,43 @@ end
 
 -- Vanilla / weak IDs → jazz EnemySquadDefs when present (units package).
 local SQUAD_REMAP = {
-	-- Legion
+	-- Legion (vanilla HotDiamonds IDs -> jazz-units)
 	LegionAttackers_Balanced_Easy = "LegionAttackers_JazzBalanced_Easy_Assault",
+	LegionAttackers_Balanced_Easy_Assault = "LegionAttackers_JazzBalanced_Easy_Assault",
 	LegionAttackers_Balanced = "LegionAttackers_JazzBalanced_Easy_Assault",
+	LegionAttackers_Balanced_Hard = "LegionAttackers_Balanced_Hard",
 	LegionRaidSquad = "LegionJAZZSquadT1",
 	LegionRaidSquad_Easy = "LegionJAZZSquadT1",
+	LegionRaidSquad_01 = "LegionJAZZSquadT1",
+	LegionRaidSquad_02 = "LegionJAZZSquadT1",
+	LegionRaidSquad_03 = "LegionJAZZSquadT1",
 	LegionDefenders_Easy = "LegionGlobalAI_Garrison",
 	LegionDefenders_Mobile_Easy = "LegionGlobalAI_Patrol",
-	LegionDefenders_Shooters_Easy = "LegionAttackers_Balanced_Easy_Assault",
-	FortressDefenders = "LegionGlobalAI_Garrison",
+	LegionDefenders_Shooters_Easy = "LegionAttackers_JazzBalanced_Easy_Assault",
+	FortressDefenders = "LegionFortressDefenders",
 	FortressPierre = "LegionJAZZSquadT2",
 	LegionHeavyTroops = "LegionHeavyTroops",
+	LegionHeavy = "LegionHeavyTroops",
 	LegionAttackers_Shock_Easy = "LegionAttackers_Shock_Easy",
+	LegionAttackers_Shock_Hard = "LegionAttackers_Shock_Hard",
 	LegionAttackers_Marksmen_Easy = "LegionAttackers_Marksmen_Easy",
+	LegionAttackers_Marksmen_Hard = "LegionAttackers_Marksmen_Hard",
 	LegionAttackers_Ordnance_Easy = "LegionAttackers_Ordnance_Easy",
-	-- WorldFlip (jazz override lists — ensure present)
+	LegionAttackers_Ordnance_Hard = "LegionAttackers_Ordnance_Hard",
+	LegionExtraSquadFireArms = "LegionExtraSquadFireArms_T2",
+	-- WorldFlip / faction lists (same-id jazz-units overrides preferred)
 	Adonis_Troops_Assault_Light = "Adonis_Troops_Assault_Light",
 	Adonis_Troops_Assault_Heavy = "Adonis_Troops_Assault_Heavy",
+	Adonis_Troops_Defenders_Light = "Adonis_Troops_Defenders_Light",
+	Adonis_Troops_Defenders_Heavy = "Adonis_Troops_Defenders_Heavy",
 	Adonis_Heavy_Troops = "Adonis_Heavy_Troops",
 	Adonis_Heavy_Troops_Alt = "Adonis_Heavy_Troops_Alt",
+	Adonis_SpecOps_Light = "Adonis_SpecOps_Light",
 	Adonis_SpecOps_Heavy = "Adonis_SpecOps_Heavy",
 	ArmySpecOps = "ArmySpecOps",
 	ArmySpecOps_alt = "ArmySpecOps_alt",
 	ArmyAttackers_Balanced_Hard = "ArmyAttackers_Balanced_Hard",
 	ArmyAttackers_Balanced_Alt = "ArmyAttackers_Balanced_Alt",
-	-- Army / Adonis / Rebel: same-id jazz-units overrides preferred; remap only when jazz alt exists
 	RebelRaiders = "RebelRaiders",
 }
 
@@ -523,18 +535,49 @@ local function lInjectFromLootDef(container, loot_def_id, seed_key)
 	return lAddItemsToContainer(container, items)
 end
 
+-- Remove cut/disabled items already present in vanilla map containers.
+local function lScrubContainerCutItems(container)
+	if not container or not container.ForEachItem then
+		return 0
+	end
+	local removed = 0
+	local to_remove = {}
+	container:ForEachItem(function(item, slot_name)
+		if item and lIsCutInventoryClass(item.class) then
+			to_remove[#to_remove + 1] = { item = item, slot = slot_name }
+		end
+	end)
+	for _, entry in ipairs(to_remove) do
+		container:RemoveItem(entry.slot, entry.item)
+		removed = removed + 1
+		if entry.item and DoneObject then
+			DoneObject(entry.item)
+		end
+	end
+	return removed
+end
+
 local function lInjectContainerLoot()
 	if not lShouldRun() or not gv_CurrentSectorId then
 		return
 	end
 	local root = lEnsureState()
 	local sector_key = gv_CurrentSectorId
+	local containers = MapGet("map", "ItemContainer") or empty_table
+	local scrubbed = 0
+	for _, container in ipairs(containers) do
+		if IsValid(container) then
+			scrubbed = scrubbed + lScrubContainerCutItems(container)
+		end
+	end
+	if scrubbed > 0 then
+		lLog("scrubbed cut loot items=" .. scrubbed .. " in " .. tostring(sector_key))
+	end
 	if root.injected[sector_key] then
 		return
 	end
 	root.injected[sector_key] = true
 
-	local containers = MapGet("map", "ItemContainer") or empty_table
 	local count = 0
 	for i, container in ipairs(containers) do
 		if not IsValid(container) then
@@ -618,6 +661,16 @@ end
 local function lSanitizeUnitAmmo(unitdata)
 	if not unitdata or not unitdata.ForEachItem then
 		return
+	end
+	-- Drop cut weapons (MP5/AR15/M4Commando stubs) before caliber pass.
+	local cut_weapons = {}
+	unitdata:ForEachItem(function(item, slot_name)
+		if item and lIsCutInventoryClass(item.class) and IsKindOf(item, "Firearm") then
+			cut_weapons[#cut_weapons + 1] = { item = item, slot = slot_name }
+		end
+	end)
+	for _, entry in ipairs(cut_weapons) do
+		unitdata:RemoveItem(entry.slot, entry.item)
 	end
 	local calibers = {}
 	unitdata:ForEachItem(function(item)
