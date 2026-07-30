@@ -5,7 +5,7 @@ return {
 	}),
 	PlaceObj('ModItemFolder', {
 		'name', "NoMapsLoot",
-		'comment', "Container inject packs for vanilla HotDiamonds without jazz-maps",
+		'comment', "Container inject packs for vanilla HotDiamonds without jazz-maps (JAZZ_AMMO_* / live weapons only)",
 	}, {
 		PlaceObj('ModItemLootDef', {
 			Comment = "Common consumables for NoMaps container inject",
@@ -49,48 +49,48 @@ return {
 			}),
 		}),
 		PlaceObj('ModItemLootDef', {
-			Comment = "Ammo for NoMaps container inject",
+			Comment = "JAZZ ammo for NoMaps container inject (no vanilla _* / TEST.png)",
 			group = "JAZZ_NoMaps",
 			id = "JAZZ_NoMaps_Container_Ammo",
 			loot = "all",
 			PlaceObj('LootEntryInventoryItem', {
 				generate_chance = 50,
-				item = "_9mm_Basic",
+				item = "JAZZ_AMMO_9x19_FMJ",
 				stack_max = 30,
 				stack_min = 10,
 				weight = 10000,
 			}),
 			PlaceObj('LootEntryInventoryItem', {
 				generate_chance = 45,
-				item = "_556_Basic",
+				item = "JAZZ_AMMO_556_FMJ",
 				stack_max = 30,
 				stack_min = 10,
 				weight = 9000,
 			}),
 			PlaceObj('LootEntryInventoryItem', {
 				generate_chance = 40,
-				item = "_762NATO_Basic",
+				item = "JAZZ_AMMO_762x51_FMJ",
 				stack_max = 30,
 				stack_min = 10,
 				weight = 8000,
 			}),
 			PlaceObj('LootEntryInventoryItem', {
 				generate_chance = 40,
-				item = "_762WP_Basic",
+				item = "JAZZ_AMMO_762x39_FMJ",
 				stack_max = 30,
 				stack_min = 10,
 				weight = 8000,
 			}),
 			PlaceObj('LootEntryInventoryItem', {
 				generate_chance = 35,
-				item = "_12gauge_Buckshot",
+				item = "JAZZ_AMMO_12gauge_Buckshot",
 				stack_max = 12,
 				stack_min = 4,
 				weight = 7000,
 			}),
 		}),
 		PlaceObj('ModItemLootDef', {
-			Comment = "Weapons for NoMaps container inject",
+			Comment = "Live JAZZ weapons for NoMaps inject (no MP5/AR15/M4Commando cut stubs)",
 			group = "JAZZ_NoMaps",
 			id = "JAZZ_NoMaps_Container_Weapon",
 			loot = "all",
@@ -101,7 +101,7 @@ return {
 			}),
 			PlaceObj('LootEntryInventoryItem', {
 				generate_chance = 20,
-				item = "MP5",
+				item = "MP5A2",
 				weight = 9000,
 			}),
 			PlaceObj('LootEntryInventoryItem', {
