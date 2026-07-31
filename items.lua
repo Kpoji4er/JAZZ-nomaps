@@ -5,7 +5,7 @@ return {
 	}),
 	PlaceObj('ModItemFolder', {
 		'name', "NoMapsLoot",
-		'comment', "Container inject packs for vanilla HotDiamonds without jazz-maps (JAZZ_AMMO_* / live weapons only)",
+		'comment', "Container inject packs for vanilla HotDiamonds without jazz-maps (JAZZ_AMMO_* / live weapons / JazzArmor)",
 	}, {
 		PlaceObj('ModItemLootDef', {
 			Comment = "Common consumables for NoMaps container inject",
@@ -123,6 +123,47 @@ return {
 				generate_chance = 20,
 				item = "Glock18",
 				weight = 8000,
+			}),
+		}),
+		PlaceObj('ModItemLootDef', {
+			Comment = "JazzArmor pieces for NoMaps inject (replaces unlootable vanilla Flak/Kevlar stubs)",
+			group = "JAZZ_NoMaps",
+			id = "JAZZ_NoMaps_Container_Armor",
+			loot = "all",
+			PlaceObj('LootEntryInventoryItem', {
+				generate_chance = 45,
+				item = "JazzArmor_FlakM69",
+				weight = 10000,
+			}),
+			PlaceObj('LootEntryInventoryItem', {
+				generate_chance = 35,
+				item = "JazzArmor_FlakM1955",
+				weight = 9000,
+			}),
+			PlaceObj('LootEntryInventoryItem', {
+				generate_chance = 30,
+				item = "JazzArmor_GuardianMedium",
+				weight = 8000,
+			}),
+			PlaceObj('LootEntryInventoryItem', {
+				generate_chance = 35,
+				item = "JazzArmor_LeatherPants",
+				weight = 7000,
+			}),
+			PlaceObj('LootEntryInventoryItem', {
+				generate_chance = 25,
+				item = "JazzArmor_GuardianLegs",
+				weight = 6000,
+			}),
+			PlaceObj('LootEntryInventoryItem', {
+				generate_chance = 35,
+				item = "JazzArmor_M1Helm",
+				weight = 7000,
+			}),
+			PlaceObj('LootEntryInventoryItem', {
+				generate_chance = 25,
+				item = "JazzArmor_PASGTHelm",
+				weight = 6000,
 			}),
 		}),
 	}),
