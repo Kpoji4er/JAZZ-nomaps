@@ -1,12 +1,12 @@
 return PlaceObj('ModDef', {
-	'title', "JAZZ NoMaps",
-	'description', "Optional JAZZ package: truncated Legion AI, squad wiring and loot inject for vanilla HotDiamonds when jazz-maps is not enabled.\n\nInstall instead of jazz-maps:\n1. JAZZ Assets\n2. JAZZ Units\n3. JAZZ NoMaps\n4. JAZZ\n(+ JA3_CommonLib)\n\nDisable this mod when using jazz-maps. If both are enabled, NoMaps stays inactive.\n\nОпциональный пакет JAZZ: урезанный Legion AI, wiring отрядов и лут для vanilla HotDiamonds без jazz-maps.\nСтавить вместо maps. При включённом jazz-maps — no-op.",
-	'last_changes', "v0.9: COMPAT-004 — force Major HQ A20; adopt InitialSquads as garrison; seed POI; vanilla Legion UnitData→JAZZ pools; container loot by JAZZ_Legion_Tier.\nv0.8: fix sparse gv_Squads gear refresh; missing-def log; Thugs affiliation; tier hook after bootstrap; expand remap.\nv0.7: Global AI playable — manpower 40, Tax/Recruiter on; clear ErnieIsland.Sectors; economy rev migrate.\nv0.6: remap Flak/Kevlar/HeavyArmor stubs → JazzArmor on gear refresh; armor loot pack for containers.",
+	'title', "JAZZ Vanilla Maps",
+	'description', "Optional JAZZ package for vanilla HotDiamonds maps (instead of jazz-maps): Legion AI, squad wiring, unit remap, and loot inject.\n\nInstall instead of jazz-maps:\n1. JAZZ Assets\n2. JAZZ Units\n3. JAZZ Vanilla Maps\n4. JAZZ\n(+ JA3_CommonLib)\n\nDisable this mod when using jazz-maps. If both are enabled, this package stays inactive.\n\nОпциональный пакет JAZZ для vanilla-карт HotDiamonds (вместо jazz-maps): Legion AI, wiring отрядов, подмена юнитов и лут.\nСтавить вместо maps. При включённом jazz-maps — no-op.",
+	'last_changes', "v0.9.2: display title → JAZZ Vanilla Maps (id 7MsJ2Eq unchanged).\nv0.9: COMPAT-004 — force Major HQ A20; adopt InitialSquads as garrison; seed POI; vanilla Legion UnitData→JAZZ pools; container loot by JAZZ_Legion_Tier.\nv0.8: fix sparse gv_Squads gear refresh; missing-def log; Thugs affiliation; tier hook after bootstrap; expand remap.\nv0.7: Global AI playable — manpower 40, Tax/Recruiter on; clear ErnieIsland.Sectors; economy rev migrate.\nv0.6: remap Flak/Kevlar/HeavyArmor stubs → JazzArmor on gear refresh; armor loot pack for containers.",
 	'id', "7MsJ2Eq",
 	'author', "Kpoji4er",
 	'version_major', 0,
 	'version_minor', 9,
-	'version', 1,
+	'version', 2,
 	'lua_revision', 233360,
 	'saved_with_revision', 366685,
 	'code', {

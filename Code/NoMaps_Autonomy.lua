@@ -1,4 +1,4 @@
--- JAZZ NoMaps (7MsJ2Eq) — autonomy when jazz-maps (FhNNYd) is not loaded.
+-- JAZZ Vanilla Maps (7MsJ2Eq, package jazz-nomaps) — autonomy when jazz-maps (FhNNYd) is not loaded.
 -- Vanilla HotDiamonds geography only. No-op while FhNNYd is active.
 -- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-004.md
 -- COMPAT-004: Major HQ force A20; adopt InitialSquads; seed POI; UnitData remap; tiered container loot.
@@ -48,9 +48,9 @@ end
 
 local function lLog(msg)
 	if CombatLog and Untranslated then
-		CombatLog("debug", Untranslated("[JAZZ NoMaps] " .. msg))
+		CombatLog("debug", Untranslated("[JAZZ Vanilla Maps] " .. msg))
 	else
-		print("[JAZZ NoMaps] " .. msg)
+		print("[JAZZ Vanilla Maps] " .. msg)
 	end
 end
 

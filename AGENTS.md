@@ -1,4 +1,4 @@
-# Правила пакета `jazz-nomaps`
+# Правила пакета `jazz-nomaps` (display: **JAZZ Vanilla Maps**)
 
 Локальный overlay. Канон комплекта: `../jazz/AGENTS.md`. Спека: `../jazz/docs/specs/active/JAZZ-COMPAT-002.md`.
 
@@ -6,7 +6,9 @@
 
 Опциональный профиль **вместо `jazz-maps`**: vanilla HotDiamonds + jazz systems (Legion AI auto-regions, squad remap, loot inject).
 
-| С maps | Без maps |
+В Mod Manager пакет называется **JAZZ Vanilla Maps** (`id` `7MsJ2Eq`). Каталог/репозиторий `jazz-nomaps` — техническое имя.
+
+| С maps | Без maps (Vanilla Maps) |
 | --- | --- |
 | assets + units + **maps** + jazz | assets + units + **nomaps** + jazz |
 
