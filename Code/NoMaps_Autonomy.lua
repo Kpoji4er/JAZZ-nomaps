@@ -586,9 +586,13 @@ local function lRemapUnitTemplate(vanilla_id, seed_key)
 	if not family then
 		return false
 	end
-	-- Tutorial / Flag Hill openers always T1 (do not scale with campaign major tier).
-	local class_tier = 1
-	if not lIsTutorialOrWeakOpener(vanilla_id) then
+	-- Tutorial / Flag Hill openers → T1; Stronger_Elite → always T4 (mercenary band).
+	local class_tier
+	if lIsTutorialOrWeakOpener(vanilla_id) then
+		class_tier = 1
+	elseif type(vanilla_id) == "string" and string.find(vanilla_id, "Stronger_Elite", 1, true) then
+		class_tier = 4
+	else
 		class_tier = Max(1, Min(4, lCampaignClassTier() + lVanillaStrengthBump(vanilla_id)))
 	end
 	local pools = UNIT_POOLS[family]
