@@ -8,6 +8,19 @@ JAZZ_NOMAPS_ID = "7MsJ2Eq"
 JAZZ_MAPS_MOD_ID = "FhNNYd"
 JAZZ_NOMAPS_MAJOR_HQ = "A20" -- vanilla The Eagle's Nest / Major's Camp
 
+-- Strict globals: runtime OnMsg cannot *create* new _G keys (Assert "Attempt to create a new global").
+-- Predeclare wrap flags/bases at file load (like jazz Guardpost_Patrols.lua); prefer rawset for writes.
+g_JAZZ_NoMapsGenerateEnemySquadWrapped = rawget(_G, "g_JAZZ_NoMapsGenerateEnemySquadWrapped") or false
+g_JAZZ_NoMapsBaseGenerateEnemySquad = rawget(_G, "g_JAZZ_NoMapsBaseGenerateEnemySquad") or false
+g_JAZZ_NoMapsWorldFlipGuarded = rawget(_G, "g_JAZZ_NoMapsWorldFlipGuarded") or false
+g_JAZZ_NoMapsBaseWorldFlip = rawget(_G, "g_JAZZ_NoMapsBaseWorldFlip") or false
+JAZZ_NoMaps_CreateUnitDataWrapped = rawget(_G, "JAZZ_NoMaps_CreateUnitDataWrapped") or false
+JAZZ_NoMaps_BaseCreateUnitData = rawget(_G, "JAZZ_NoMaps_BaseCreateUnitData") or false
+JAZZ_NoMaps_UnitMarkerWrapped = rawget(_G, "JAZZ_NoMaps_UnitMarkerWrapped") or false
+JAZZ_NoMaps_BaseUnitMarkerSpawnObjects = rawget(_G, "JAZZ_NoMaps_BaseUnitMarkerSpawnObjects") or false
+JAZZ_StandaloneNoMapsBootstrap = rawget(_G, "JAZZ_StandaloneNoMapsBootstrap") or false
+JAZZ_StandaloneNoMapsIsActive = rawget(_G, "JAZZ_StandaloneNoMapsIsActive") or false
+
 GameVar("gv_JAZZ_NoMaps", function()
 	return {
 		schema = 1,
@@ -963,8 +976,8 @@ local function lInstallGenerateEnemySquadWrapper()
 	if type(base) ~= "function" then
 		return
 	end
-	g_JAZZ_NoMapsGenerateEnemySquadWrapped = true
-	g_JAZZ_NoMapsBaseGenerateEnemySquad = base
+	rawset(_G, "g_JAZZ_NoMapsGenerateEnemySquadWrapped", true)
+	rawset(_G, "g_JAZZ_NoMapsBaseGenerateEnemySquad", base)
 	function GenerateEnemySquad(squad_def_id, ...)
 		if lShouldRun() then
 			squad_def_id = lRemapSquadId(squad_def_id)
@@ -982,8 +995,8 @@ local function lInstallWorldFlipGuard()
 	if type(base) ~= "function" then
 		return
 	end
-	g_JAZZ_NoMapsWorldFlipGuarded = true
-	g_JAZZ_NoMapsBaseWorldFlip = base
+	rawset(_G, "g_JAZZ_NoMapsWorldFlipGuarded", true)
+	rawset(_G, "g_JAZZ_NoMapsBaseWorldFlip", base)
 	function SpawnWorldFlipAttackSquads()
 		if not lShouldRun() then
 			return g_JAZZ_NoMapsBaseWorldFlip()
@@ -1382,14 +1395,27 @@ local function lRegearInventory(inv, seed)
 	return lSanitizeUnitArmor(inv)
 end
 
+-- SetQuestVar runs QuestTCEEvaluation; during early NewGame `Groups` can still be boolean → assert.
+local function lQuestVarSafeSet(quest, var_id, value)
+	if not quest or var_id == nil then
+		return false
+	end
+	if type(rawget(_G, "Groups")) == "table" and SetQuestVar then
+		SetQuestVar(quest, var_id, value)
+		return true
+	end
+	rawset(quest, var_id, value)
+	return true
+end
+
 local function lEnsureLegionTierRawset()
 	if rawget(_G, "JAZZ_UpdateLegionTierForNoMaps") then
 		JAZZ_UpdateLegionTierForNoMaps()
 	end
-	-- Loot QuestIsVariableNum uses rawget; metatable default 11 is invisible until SetQuestVar.
+	-- Loot QuestIsVariableNum uses rawget; metatable default 11 is invisible until value is set.
 	local quest = QuestGetState and QuestGetState("JAZZ_LegionTier")
-	if quest and SetQuestVar and rawget(quest, "JAZZ_Legion_Tier") == nil then
-		SetQuestVar(quest, "JAZZ_Legion_Tier", 11)
+	if quest and rawget(quest, "JAZZ_Legion_Tier") == nil then
+		lQuestVarSafeSet(quest, "JAZZ_Legion_Tier", 11)
 		lLog("rawset JAZZ_Legion_Tier=11 for loot conditions")
 	end
 end
@@ -1455,7 +1481,8 @@ local function lInstallCreateUnitDataWrapper()
 	if type(CreateUnitData) ~= "function" then
 		return
 	end
-	local original = CreateUnitData
+	rawset(_G, "JAZZ_NoMaps_BaseCreateUnitData", CreateUnitData)
+	rawset(_G, "JAZZ_NoMaps_CreateUnitDataWrapped", true)
 	CreateUnitData = function(unit_template, session_id, ...)
 		if lShouldRun() and type(unit_template) == "string" then
 			local remapped = lRemapUnitTemplate(
@@ -1466,9 +1493,8 @@ local function lInstallCreateUnitDataWrapper()
 				unit_template = remapped
 			end
 		end
-		return original(unit_template, session_id, ...)
+		return JAZZ_NoMaps_BaseCreateUnitData(unit_template, session_id, ...)
 	end
-	JAZZ_NoMaps_CreateUnitDataWrapped = true
 end
 
 local function lInstallUnitMarkerWrapper()
@@ -1478,7 +1504,8 @@ local function lInstallUnitMarkerWrapper()
 	if not UnitMarker or type(UnitMarker.SpawnObjects) ~= "function" then
 		return
 	end
-	local original = UnitMarker.SpawnObjects
+	rawset(_G, "JAZZ_NoMaps_BaseUnitMarkerSpawnObjects", UnitMarker.SpawnObjects)
+	rawset(_G, "JAZZ_NoMaps_UnitMarkerWrapped", true)
 	function UnitMarker:SpawnObjects(...)
 		if lShouldRun() and self.UnitDataSpawnDefs then
 			for _, entry in ipairs(self.UnitDataSpawnDefs) do
@@ -1493,9 +1520,8 @@ local function lInstallUnitMarkerWrapper()
 				end
 			end
 		end
-		return original(self, ...)
+		return JAZZ_NoMaps_BaseUnitMarkerSpawnObjects(self, ...)
 	end
-	JAZZ_NoMaps_UnitMarkerWrapped = true
 end
 
 local function lRefreshEnemyLoadouts()
@@ -1678,9 +1704,9 @@ function JAZZ_NoMapsIsActive()
 	return lShouldRun() and lEnsureState().active
 end
 
--- Legacy alias for COMPAT-001 callers / diagnostics
-JAZZ_StandaloneNoMapsBootstrap = JAZZ_NoMapsBootstrap
-JAZZ_StandaloneNoMapsIsActive = JAZZ_NoMapsIsActive
+-- Legacy alias for COMPAT-001 callers / diagnostics (predeclared above; use rawset).
+rawset(_G, "JAZZ_StandaloneNoMapsBootstrap", JAZZ_NoMapsBootstrap)
+rawset(_G, "JAZZ_StandaloneNoMapsIsActive", JAZZ_NoMapsIsActive)
 
 function OnMsg.ModsReloaded()
 	if lShouldRun() then
