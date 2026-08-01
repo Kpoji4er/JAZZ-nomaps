@@ -1,7 +1,8 @@
 -- JAZZ Vanilla Maps (7MsJ2Eq, package jazz-nomaps) — autonomy when jazz-maps (FhNNYd) is not loaded.
 -- Vanilla HotDiamonds geography only. No-op while FhNNYd is active.
--- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-004.md
+-- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-005.md
 -- COMPAT-004: Major HQ force A20; adopt InitialSquads; seed POI; UnitData remap; tiered container loot.
+-- COMPAT-005: true T1-only Early squad + class-tier cap on gear major I (day-1 weight class).
 
 JAZZ_NOMAPS_ID = "7MsJ2Eq"
 JAZZ_MAPS_MOD_ID = "FhNNYd"
@@ -104,11 +105,11 @@ local SQUAD_REMAP = {
 	LegionAttackers_Balanced_Easy_Assault = "LegionAttackers_JazzBalanced_Easy_Assault",
 	LegionAttackers_Balanced = "LegionAttackers_JazzBalanced_Easy_Assault",
 	LegionAttackers_Balanced_Hard = "LegionAttackers_Balanced_Hard",
-	LegionRaidSquad = "LegionJAZZSquadT1",
-	LegionRaidSquad_Easy = "LegionJAZZSquadT1",
-	LegionRaidSquad_01 = "LegionJAZZSquadT1",
-	LegionRaidSquad_02 = "LegionJAZZSquadT1",
-	LegionRaidSquad_03 = "LegionJAZZSquadT1",
+	LegionRaidSquad = "LegionJAZZSquadT1_Early",
+	LegionRaidSquad_Easy = "LegionJAZZSquadT1_Early",
+	LegionRaidSquad_01 = "LegionJAZZSquadT1_Early",
+	LegionRaidSquad_02 = "LegionJAZZSquadT1_Early",
+	LegionRaidSquad_03 = "LegionJAZZSquadT1_Early",
 	LegionDefenders_Easy = "LegionGlobalAI_Garrison",
 	LegionDefenders_Mobile_Easy = "LegionGlobalAI_Patrol",
 	LegionDefenders_Shooters_Easy = "LegionAttackers_JazzBalanced_Easy_Assault",
@@ -139,8 +140,8 @@ local SQUAD_REMAP = {
 	RebelRaiders = "RebelRaiders",
 	-- Extra HotDiamonds / legacy Legion aliases → jazz-units
 	LegionRaidSquad_Hard = "LegionJAZZSquadT2",
-	LegionRaidSquad_04 = "LegionJAZZSquadT1",
-	LegionRaidSquad_05 = "LegionJAZZSquadT1",
+	LegionRaidSquad_04 = "LegionJAZZSquadT1_Early",
+	LegionRaidSquad_05 = "LegionJAZZSquadT1_Early",
 	LegionDefenders = "LegionGlobalAI_Garrison",
 	LegionDefenders_Hard = "LegionGlobalAI_Garrison",
 	LegionDefenders_Mobile = "LegionGlobalAI_Patrol",
@@ -155,26 +156,26 @@ local SQUAD_REMAP = {
 	OutlookPatrool = "LegionGlobalAI_Patrol",
 	Beach_Patrol = "LegionGlobalAI_Patrol",
 	["3rd_Patrol"] = "LegionGlobalAI_Patrol",
-	LegionOutlook_Easy = "LegionJAZZSquadT1",
-	LegionErnieVillage = "LegionJAZZSquadT1",
-	LegionRustIni = "LegionJAZZSquadT1",
+	LegionOutlook_Easy = "LegionJAZZSquadT1_Early",
+	LegionErnieVillage = "LegionJAZZSquadT1_Early",
+	LegionRustIni = "LegionJAZZSquadT1_Early",
 	LegionExtraSquadMelee = "LegionExtraSquadMelee_T2",
 	-- Thug satellite squads (vanilla IDs; no jazz-units Thug EnemySquad → Legion T1 kit)
-	Thugs = "LegionJAZZSquadT1",
-	ThugsSquad = "LegionJAZZSquadT1",
-	ThugSquad = "LegionJAZZSquadT1",
-	Thugs_Attackers = "LegionJAZZSquadT1",
-	ThugsAttackers = "LegionJAZZSquadT1",
-	Thugs_Raid = "LegionJAZZSquadT1",
-	ThugEnforcers = "LegionJAZZSquadT1",
+	Thugs = "LegionJAZZSquadT1_Early",
+	ThugsSquad = "LegionJAZZSquadT1_Early",
+	ThugSquad = "LegionJAZZSquadT1_Early",
+	Thugs_Attackers = "LegionJAZZSquadT1_Early",
+	ThugsAttackers = "LegionJAZZSquadT1_Early",
+	Thugs_Raid = "LegionJAZZSquadT1_Early",
+	ThugEnforcers = "LegionJAZZSquadT1_Early",
 }
 
 local ROLE_LISTS = {
 	garrison = { "LegionGlobalAI_Garrison", "FortressDefenders", "LegionFortressDefenders" },
-	patrol = { "LegionGlobalAI_Patrol", "LegionJAZZSquadT1", "LegionAttackers_Balanced_Easy_Assault" },
-	recon = { "LegionGlobalAI_Recon", "LegionJAZZSquadT1" },
+	patrol = { "LegionGlobalAI_Patrol", "LegionJAZZSquadT1_Early", "LegionAttackers_Balanced_Easy_Assault" },
+	recon = { "LegionGlobalAI_Recon", "LegionJAZZSquadT1_Early" },
 	qrf = { "LegionJAZZSquadT2", "LegionHeavyTroops" },
-	attack = { "LegionJAZZSquadT1", "LegionAttackers_Balanced_Easy_Assault", "LegionExtraSquadFireArms_T2" },
+	attack = { "LegionJAZZSquadT1_Early", "LegionAttackers_Balanced_Easy_Assault", "LegionExtraSquadFireArms_T2" },
 	strong = { "LegionJAZZSquadT2", "LegionHeavyTroops", "LegionJAZZSquadT3" },
 	convoy = { "LegionGlobalAI_Convoy" },
 	major = { "LegionJAZZSquadT3", "LegionHeavyTroops" },
@@ -590,14 +591,18 @@ local function lRemapUnitTemplate(vanilla_id, seed_key)
 	if not family then
 		return false
 	end
-	-- Tutorial / Flag Hill openers → T1; Stronger_Elite → always T4 (mercenary band).
+	-- COMPAT-005: gear major I stays class T1 (no Stronger/Elite bump); Stronger_Elite→T4 only major III+.
+	local major = lCampaignClassTier()
 	local class_tier
-	if lIsTutorialOrWeakOpener(vanilla_id) then
+	if lIsTutorialOrWeakOpener(vanilla_id) or major <= 1 then
 		class_tier = 1
 	elseif type(vanilla_id) == "string" and string.find(vanilla_id, "Stronger_Elite", 1, true) then
-		class_tier = 4
+		class_tier = major >= 3 and 4 or 3
 	else
-		class_tier = Max(1, Min(4, lCampaignClassTier() + lVanillaStrengthBump(vanilla_id)))
+		class_tier = Max(1, Min(4, major + lVanillaStrengthBump(vanilla_id)))
+		if major == 2 then
+			class_tier = Min(class_tier, 3)
+		end
 	end
 	local pools = UNIT_POOLS[family]
 	if not pools then
@@ -847,13 +852,46 @@ end
 
 local g_JAZZ_NoMapsMissingSquadLogged = {}
 
+-- COMPAT-005: Early alias scales with gear major (I→Early T1-only, II→T2, III→T3).
+local function lResolveTieredLegionSquad()
+	local major = lTierMajor(lGetLegionTier())
+	local candidates
+	if major >= 3 then
+		candidates = { "LegionJAZZSquadT3", "LegionJAZZSquadT2", "LegionJAZZSquadT1_Early", "LegionJAZZSquadT1" }
+	elseif major >= 2 then
+		candidates = { "LegionJAZZSquadT2", "LegionJAZZSquadT1_Early", "LegionJAZZSquadT1" }
+	else
+		candidates = { "LegionJAZZSquadT1_Early", "LegionJAZZSquadT1" }
+	end
+	for _, id in ipairs(candidates) do
+		if lHasEnemySquad(id) then
+			return id
+		end
+	end
+	return "LegionJAZZSquadT1_Early"
+end
+
+local function lExpandSquadAlias(squad_def_id)
+	if squad_def_id == "LegionJAZZSquadT1_Early" then
+		return lResolveTieredLegionSquad()
+	end
+	return squad_def_id
+end
+
 local function lRemapSquadId(squad_def_id)
 	if not squad_def_id then
 		return squad_def_id
 	end
+	-- Early is a real EnemySquad Id; still expand so gear major II/III can promote.
+	if squad_def_id == "LegionJAZZSquadT1_Early" then
+		return lResolveTieredLegionSquad()
+	end
 	local mapped = SQUAD_REMAP[squad_def_id]
-	if mapped and lHasEnemySquad(mapped) then
-		return mapped
+	if mapped then
+		mapped = lExpandSquadAlias(mapped)
+		if lHasEnemySquad(mapped) then
+			return mapped
+		end
 	end
 	if lHasEnemySquad(squad_def_id) then
 		return squad_def_id
@@ -862,20 +900,23 @@ local function lRemapSquadId(squad_def_id)
 	local prefix_map = false
 	if type(squad_def_id) == "string" then
 		if string.find(squad_def_id, "Thug", 1, true) == 1 or string.find(squad_def_id, "Thugs", 1, true) == 1 then
-			prefix_map = "LegionJAZZSquadT1"
+			prefix_map = "LegionJAZZSquadT1_Early"
 		elseif string.find(squad_def_id, "Legion", 1, true) == 1 then
-			prefix_map = "LegionJAZZSquadT1"
+			prefix_map = "LegionJAZZSquadT1_Early"
 		end
 	end
-	if prefix_map and lHasEnemySquad(prefix_map) then
-		if not g_JAZZ_NoMapsMissingSquadLogged[squad_def_id] then
-			g_JAZZ_NoMapsMissingSquadLogged[squad_def_id] = true
-			lLog("squad remap prefix " .. tostring(squad_def_id) .. " → " .. prefix_map)
+	if prefix_map then
+		prefix_map = lExpandSquadAlias(prefix_map)
+		if lHasEnemySquad(prefix_map) then
+			if not g_JAZZ_NoMapsMissingSquadLogged[squad_def_id] then
+				g_JAZZ_NoMapsMissingSquadLogged[squad_def_id] = true
+				lLog("squad remap prefix " .. tostring(squad_def_id) .. " → " .. prefix_map)
+			end
+			return prefix_map
 		end
-		return prefix_map
 	end
 	local fallback = lPickExisting(ROLE_LISTS.attack)
-	local fb = fallback[1] or squad_def_id
+	local fb = lExpandSquadAlias(fallback[1] or squad_def_id)
 	if not g_JAZZ_NoMapsMissingSquadLogged[squad_def_id] then
 		g_JAZZ_NoMapsMissingSquadLogged[squad_def_id] = true
 		lLog("missing EnemySquadDef " .. tostring(squad_def_id) .. "; fallback " .. tostring(fb))
