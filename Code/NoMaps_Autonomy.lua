@@ -1,7 +1,7 @@
 -- JAZZ NoMaps (7MsJ2Eq) — autonomy when jazz-maps (FhNNYd) is not loaded.
 -- Vanilla HotDiamonds geography only. No-op while FhNNYd is active.
--- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md, JAZZ-COMPAT-003.md
--- Review fixes: squad ipairs→sorted_pairs; missing-def log; Thugs gear; tier after bootstrap.
+-- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-004.md
+-- COMPAT-004: Major HQ force A20; adopt InitialSquads; seed POI; UnitData remap; tiered container loot.
 
 JAZZ_NOMAPS_ID = "7MsJ2Eq"
 JAZZ_MAPS_MOD_ID = "FhNNYd"
@@ -180,31 +180,188 @@ local ROLE_LISTS = {
 	major = { "LegionJAZZSquadT3", "LegionHeavyTroops" },
 }
 
-local LOOT_PACKS = {
-	{ chance = 35, id = "JAZZ_NoMaps_Container_Ammo" },
-	{ chance = 20, id = "JAZZ_NoMaps_Container_Common" },
-	{ chance = 18, id = "JAZZ_NoMaps_Container_Armor" },
-	{ chance = 15, id = "JAZZ_NoMaps_Container_Weapon" },
+local LOOT_PACKS_BY_MAJOR = {
+	-- Sum of chances = inject rate; remainder = miss. T1 intentionally sparse.
+	[1] = {
+		{ chance = 22, id = "JAZZ_NoMaps_Container_Ammo_T1" },
+		{ chance = 12, id = "JAZZ_NoMaps_Container_Common_T1" },
+		{ chance = 5, id = "JAZZ_NoMaps_Container_Armor_T1" },
+		{ chance = 3, id = "JAZZ_NoMaps_Container_Weapon_T1" },
+	},
+	[2] = {
+		{ chance = 28, id = "JAZZ_NoMaps_Container_Ammo_T2" },
+		{ chance = 16, id = "JAZZ_NoMaps_Container_Common_T2" },
+		{ chance = 10, id = "JAZZ_NoMaps_Container_Armor_T2" },
+		{ chance = 8, id = "JAZZ_NoMaps_Container_Weapon_T2" },
+	},
+	[3] = {
+		{ chance = 30, id = "JAZZ_NoMaps_Container_Ammo_T3" },
+		{ chance = 18, id = "JAZZ_NoMaps_Container_Common_T3" },
+		{ chance = 14, id = "JAZZ_NoMaps_Container_Armor_T3" },
+		{ chance = 12, id = "JAZZ_NoMaps_Container_Weapon_T3" },
+	},
 }
 
-local LOOT_POOLS_FALLBACK = {
-	common = { "Meds", "FragGrenade", "SmokeGrenade", "Lockpick", "Wirecutter" },
-	ammo = {
-		"JAZZ_AMMO_9x19_FMJ",
-		"JAZZ_AMMO_556_FMJ",
-		"JAZZ_AMMO_762x51_FMJ",
-		"JAZZ_AMMO_762x39_FMJ",
-		"JAZZ_AMMO_12gauge_Buckshot",
+-- Legacy flat ids → T3 packs (if old code paths linger).
+local LOOT_PACKS = LOOT_PACKS_BY_MAJOR[3]
+
+local LOOT_POOLS_FALLBACK_BY_MAJOR = {
+	[1] = {
+		common = { "Meds", "Lockpick" },
+		ammo = {
+			"JAZZ_AMMO_9x19_Poor",
+			"JAZZ_AMMO_9x19_FMJ",
+			"JAZZ_AMMO_762x39_Poor",
+			"JAZZ_AMMO_12gauge_Buckshot",
+		},
+		weapons = { "HiPower", "UZI" },
+		armor = {
+			"JazzArmor_FlakM69",
+			"JazzArmor_LeatherPants",
+			"JazzArmor_M1Helm",
+		},
 	},
-	weapons = { "AK47", "MP5A2", "UZI", "Galil", "FAMAS", "Glock18" },
-	armor = {
-		"JazzArmor_FlakM69",
-		"JazzArmor_FlakM1955",
-		"JazzArmor_GuardianMedium",
-		"JazzArmor_LeatherPants",
-		"JazzArmor_GuardianLegs",
-		"JazzArmor_M1Helm",
-		"JazzArmor_PASGTHelm",
+	[2] = {
+		common = { "Meds", "FragGrenade", "SmokeGrenade", "Lockpick", "Wirecutter" },
+		ammo = {
+			"JAZZ_AMMO_9x19_FMJ",
+			"JAZZ_AMMO_556_FMJ",
+			"JAZZ_AMMO_762x39_FMJ",
+			"JAZZ_AMMO_12gauge_Buckshot",
+		},
+		weapons = { "AK47", "MP5A2", "UZI", "Glock18" },
+		armor = {
+			"JazzArmor_FlakM69",
+			"JazzArmor_FlakM1955",
+			"JazzArmor_LeatherPants",
+			"JazzArmor_M1Helm",
+			"JazzArmor_PASGTHelm",
+		},
+	},
+	[3] = {
+		common = { "Meds", "FragGrenade", "SmokeGrenade", "Lockpick", "Wirecutter" },
+		ammo = {
+			"JAZZ_AMMO_9x19_FMJ",
+			"JAZZ_AMMO_556_FMJ",
+			"JAZZ_AMMO_762x51_FMJ",
+			"JAZZ_AMMO_762x39_FMJ",
+			"JAZZ_AMMO_12gauge_Buckshot",
+		},
+		weapons = { "AK47", "MP5A2", "UZI", "Galil", "FAMAS", "Glock18" },
+		armor = {
+			"JazzArmor_FlakM69",
+			"JazzArmor_FlakM1955",
+			"JazzArmor_GuardianMedium",
+			"JazzArmor_LeatherPants",
+			"JazzArmor_GuardianLegs",
+			"JazzArmor_M1Helm",
+			"JazzArmor_PASGTHelm",
+		},
+	},
+}
+
+local LOOT_POOLS_FALLBACK = LOOT_POOLS_FALLBACK_BY_MAJOR[3]
+
+-- Vanilla stem → JAZZ family key (pools below). Named / Hyena omitted on purpose.
+local UNIT_FAMILY_BY_STEM = {
+	LegionGoon = "assault",
+	LegionManiac = "crusher",
+	LegionGrenadir = "grenadier",
+	LegionGrenadier = "grenadier",
+	LegionRaider = "front",
+	LegionGunner = "gunner",
+	LegionSniper = "sniper",
+	LegionSharpShooter = "marksman",
+	LegionSharpshooter = "marksman",
+	LegionScout = "flanker",
+	LegionRanger = "flanker",
+	Legion_Recon = "flanker",
+	LegionRaidLeader = "leader",
+	LegionSergant = "leader",
+	LegionSergeant = "leader",
+	LegionMedic = "medic",
+	Legion_WitchDoctor = "medic",
+	LegionRoceteer = "heavy",
+	LegionRocketeer = "heavy",
+	LegionMortalman = "heavy",
+	Legion_Artillery = "heavy",
+	LegionButcher = "butcher",
+	Legion_Soldier = "front",
+	Legion_Marksman = "marksman",
+}
+
+local UNIT_POOLS = {
+	assault = {
+		[1] = { "JAZZ_Legion_AssaultT1_Roughneck" },
+		[2] = { "JAZZ_Legion_AssaultT2_Pillager", "JAZZ_Legion_AssaultT2_ShockTrooper" },
+		[3] = { "JAZZ_Legion_AssaultT3_Punisher", "JAZZ_Legion_AssaultT3_SkullCrusher" },
+		[4] = { "JAZZ_Legion_AssaultT4_Headsman" },
+	},
+	crusher = {
+		[1] = { "JAZZ_Legion_AssaultT1_Crusher" },
+		[2] = { "JAZZ_Legion_AssaultT2_Pyro", "JAZZ_Legion_AssaultT2_ShockTrooper" },
+		[3] = { "JAZZ_Legion_AssaultT3_SkullCrusher" },
+		[4] = { "JAZZ_Legion_AssaultT4_Headsman" },
+	},
+	grenadier = {
+		[1] = { "JAZZ_Legion_AssaultT1_Grenadier" },
+		[2] = { "JAZZ_Legion_AssaultT2_Pyro", "JAZZ_Legion_HeavyT2_Grenadier" },
+		[3] = { "JAZZ_Legion_AssaultT3_Punisher", "JAZZ_Legion_HeavyT3_Mortarman" },
+		[4] = { "JAZZ_Legion_AssaultT4_Headsman" },
+	},
+	front = {
+		[1] = { "JAZZ_Legion_FrontT1_Marauder", "JAZZ_Legion_FrontT1_Rifleman" },
+		[2] = { "JAZZ_Legion_FrontT2_Raider", "JAZZ_Legion_FrontT2_Marksman" },
+		[3] = { "JAZZ_Legion_FrontT3_Veteran" },
+		[4] = { "JAZZ_Legion_FrontT4_Mercenary" },
+	},
+	gunner = {
+		[1] = { "JAZZ_Legion_GunnerT1_Gunner" },
+		[2] = { "JAZZ_Legion_GunnerT2_GMPG", "JAZZ_Legion_GunnerT2_AssaultGunner" },
+		[3] = { "JAZZ_Legion_GunnerT3_VeteranGunner" },
+		[4] = { "JAZZ_Legion_GunnerT4_MercGunner" },
+	},
+	sniper = {
+		[1] = { "JAZZ_Legion_FrontT1_Rifleman", "JAZZ_Legion_FrontT2_Ambusher" },
+		[2] = { "JAZZ_Legion_FrontT2_Ambusher", "JAZZ_Legion_FrontT2_Marksman" },
+		[3] = { "JAZZ_Legion_FrontT3_Sniper" },
+		[4] = { "JAZZ_Legion_FrontT4_MercenarySniper" },
+	},
+	marksman = {
+		[1] = { "JAZZ_Legion_FrontT1_Rifleman" },
+		[2] = { "JAZZ_Legion_FrontT2_Marksman" },
+		[3] = { "JAZZ_Legion_FrontT3_Sniper" },
+		[4] = { "JAZZ_Legion_FrontT4_MercenarySniper" },
+	},
+	flanker = {
+		[1] = { "JAZZ_Legion_FlankerT1_Warden" },
+		[2] = { "JAZZ_Legion_FlankerT2_Scout", "JAZZ_Legion_FlankerT2_Skirmisher" },
+		[3] = { "JAZZ_Legion_FlankerT3_Recon", "JAZZ_Legion_FlankerT3_Pathfinder" },
+		[4] = { "JAZZ_Legion_FlankerT4_Ranger" },
+	},
+	leader = {
+		[1] = { "JAZZ_Legion_LeaderT1_Sergeant" },
+		[2] = { "JAZZ_Legion_LeaderT2_Lieutenant" },
+		[3] = { "JAZZ_Legion_LeaderT3_Captain" },
+		[4] = { "JAZZ_Legion_LeaderT4_MercenaryCaptain" },
+	},
+	medic = {
+		[1] = { "JAZZ_Legion_FrontT1_Bonemaker" },
+		[2] = { "JAZZ_Legion_FrontT1_Bonemaker" },
+		[3] = { "JAZZ_Legion_FrontT1_Bonemaker" },
+		[4] = { "JAZZ_Legion_FrontT1_Bonemaker" },
+	},
+	heavy = {
+		[1] = { "JAZZ_Legion_HeavyT1_Rocketeer" },
+		[2] = { "JAZZ_Legion_HeavyT2_Grenadier" },
+		[3] = { "JAZZ_Legion_HeavyT3_Mortarman" },
+		[4] = { "JAZZ_Legion_HeavyT3_Mortarman" },
+	},
+	butcher = {
+		[1] = { "JAZZ_Legion_AssaultT1_Crusher", "JAZZ_Legion_AssaultT1_Roughneck" },
+		[2] = { "JAZZ_Legion_AssaultT2_ShockTrooper" },
+		[3] = { "JAZZ_Legion_AssaultT3_SkullCrusher" },
+		[4] = { "JAZZ_Legion_AssaultT4_Headsman" },
 	},
 }
 
@@ -300,6 +457,107 @@ end
 
 local function lItemAllowed(class)
 	return lItemExists(class) and not lIsCutInventoryClass(class)
+end
+
+local function lGetLegionTier()
+	local quest = gv_Quests and gv_Quests["JAZZ_LegionTier"]
+	if quest then
+		local state = QuestGetState and QuestGetState("JAZZ_LegionTier")
+		local val = state and state.JAZZ_Legion_Tier
+		if val == nil and quest.JAZZ_Legion_Tier ~= nil then
+			val = quest.JAZZ_Legion_Tier
+		end
+		val = tonumber(val)
+		if val then
+			return val
+		end
+	end
+	return 11
+end
+
+local function lTierMajor(tier)
+	tier = tonumber(tier) or 11
+	local major = Max(1, Min(3, math.floor(tier / 10)))
+	return major
+end
+
+local function lGetLootPacksForTier(tier)
+	return LOOT_PACKS_BY_MAJOR[lTierMajor(tier)] or LOOT_PACKS_BY_MAJOR[1]
+end
+
+local function lGetFallbackPoolsForTier(tier)
+	return LOOT_POOLS_FALLBACK_BY_MAJOR[lTierMajor(tier)] or LOOT_POOLS_FALLBACK_BY_MAJOR[1]
+end
+
+local function lCampaignClassTier()
+	return Max(1, Min(4, lTierMajor(lGetLegionTier())))
+end
+
+local function lVanillaStrengthBump(unit_id)
+	if type(unit_id) ~= "string" then
+		return 0
+	end
+	if string.find(unit_id, "Elite", 1, true) then
+		return 2
+	end
+	if string.find(unit_id, "Stronger", 1, true) then
+		return 1
+	end
+	return 0
+end
+
+local function lMatchUnitFamily(unit_id)
+	if type(unit_id) ~= "string" or unit_id == "" then
+		return false
+	end
+	if string.sub(unit_id, 1, 11) == "JAZZ_Legion" then
+		return false
+	end
+	-- Exact / longest stem match.
+	local best, best_len = false, 0
+	for stem, family in pairs(UNIT_FAMILY_BY_STEM) do
+		if string.sub(unit_id, 1, #stem) == stem and #stem > best_len then
+			best, best_len = family, #stem
+		end
+	end
+	return best
+end
+
+local function lPickFromPool(pool, seed_key)
+	if type(pool) ~= "table" or #pool == 0 then
+		return false
+	end
+	local available = {}
+	for _, id in ipairs(pool) do
+		if lItemExists(id) then
+			available[#available + 1] = id
+		end
+	end
+	if #available == 0 then
+		return false
+	end
+	local idx = 1 + InteractionRand(#available, seed_key or "JAZZ_NoMapsUnitPool")
+	return available[idx]
+end
+
+local function lRemapUnitTemplate(vanilla_id, seed_key)
+	local family = lMatchUnitFamily(vanilla_id)
+	if not family then
+		return false
+	end
+	local class_tier = Max(1, Min(4, lCampaignClassTier() + lVanillaStrengthBump(vanilla_id)))
+	local pools = UNIT_POOLS[family]
+	if not pools then
+		return false
+	end
+	-- Walk down tiers if higher band empty / missing classes.
+	for t = class_tier, 1, -1 do
+		local picked = lPickFromPool(pools[t], (seed_key or "JAZZ_NoMapsRemap") .. "_" .. family .. "_" .. t)
+		if picked and picked ~= vanilla_id then
+			return picked
+		end
+	end
+	return false
 end
 
 local function lRegionId(region)
@@ -785,6 +1043,13 @@ local function lInjectContainerLoot()
 	end
 	root.injected[sector_key] = true
 
+	local tier = lGetLegionTier()
+	local packs = lGetLootPacksForTier(tier)
+	local inject_cap = 0
+	for _, pack in ipairs(packs) do
+		inject_cap = inject_cap + pack.chance
+	end
+
 	local count = 0
 	for i, container in ipairs(containers) do
 		if not IsValid(container) then
@@ -800,7 +1065,7 @@ local function lInjectContainerLoot()
 		local roll = InteractionRand(100, "JAZZ_NoMapsLoot_" .. inject_key)
 		local cum = 0
 		local used_pack = false
-		for _, pack in ipairs(LOOT_PACKS) do
+		for _, pack in ipairs(packs) do
 			cum = cum + pack.chance
 			if roll < cum then
 				local n = lInjectFromLootDef(container, pack.id, "JAZZ_NoMapsPack_" .. inject_key)
@@ -811,15 +1076,16 @@ local function lInjectContainerLoot()
 				break
 			end
 		end
-		-- Fallback if LootDefs not ready yet
-		if not used_pack and roll < 88 then
-			local pool = LOOT_POOLS_FALLBACK.ammo
-			if roll >= 73 then
-				pool = LOOT_POOLS_FALLBACK.weapons
-			elseif roll >= 55 then
-				pool = LOOT_POOLS_FALLBACK.armor
-			elseif roll >= 35 then
-				pool = LOOT_POOLS_FALLBACK.common
+		-- Fallback if LootDefs not ready yet (same chance band as pack miss boundary).
+		if not used_pack and roll < inject_cap then
+			local fallback = lGetFallbackPoolsForTier(tier)
+			local pool = fallback.ammo
+			if roll >= (packs[1].chance + packs[2].chance + packs[3].chance) then
+				pool = fallback.weapons
+			elseif roll >= (packs[1].chance + packs[2].chance) then
+				pool = fallback.armor
+			elseif roll >= packs[1].chance then
+				pool = fallback.common
 			end
 			local class = lPickLootClass(pool, "JAZZ_NoMapsFallback_" .. inject_key)
 			if class then
@@ -836,7 +1102,7 @@ local function lInjectContainerLoot()
 		::next_container::
 	end
 	if count > 0 then
-		lLog("injected loot items=" .. count .. " in " .. tostring(sector_key))
+		lLog("injected loot items=" .. count .. " in " .. tostring(sector_key) .. " tier=" .. tostring(tier))
 	end
 end
 
@@ -936,10 +1202,115 @@ local function lSanitizeUnitAmmo(unitdata)
 	end)
 end
 
+local function lRemapUnitDataSession(session_id, unitdata)
+	if not unitdata or not session_id or not CreateUnitData then
+		return false
+	end
+	local old_class = unitdata.class
+	local new_id = lRemapUnitTemplate(old_class, "JAZZ_NoMapsUnit_" .. tostring(session_id))
+	if not new_id then
+		return false
+	end
+	local seed = unitdata.randomization_seed
+		or InteractionRand(nil, "JAZZ_NoMapsRemapSeed_" .. tostring(session_id))
+	if unitdata.delete then
+		unitdata:delete()
+	end
+	gv_UnitData[session_id] = false
+	local ok, err = pcall(CreateUnitData, new_id, session_id, seed)
+	if not ok or not gv_UnitData[session_id] then
+		lLog(string.format("unit remap %s→%s failed: %s", tostring(old_class), tostring(new_id), tostring(err)))
+		return false
+	end
+	return true
+end
+
+local function lRemapEnemyUnitTemplates()
+	if not gv_UnitData then
+		return 0
+	end
+	local to_remap = {}
+	for session_id, unitdata in sorted_pairs(gv_UnitData) do
+		if type(unitdata) == "table"
+			and not unitdata.IsMercenary
+			and unitdata.IsDead and not unitdata:IsDead()
+			and unitdata.Affiliation
+			and (unitdata.Affiliation == "Legion" or unitdata.Affiliation == "Thugs")
+			and lMatchUnitFamily(unitdata.class)
+		then
+			to_remap[#to_remap + 1] = session_id
+		end
+	end
+	local count = 0
+	local root = lEnsureState()
+	for _, session_id in ipairs(to_remap) do
+		local unitdata = gv_UnitData[session_id]
+		if unitdata and lRemapUnitDataSession(session_id, unitdata) then
+			count = count + 1
+			root.geared[session_id] = nil
+		end
+	end
+	if count > 0 then
+		lLog("remapped UnitData templates=" .. count)
+	end
+	return count
+end
+
+local function lInstallCreateUnitDataWrapper()
+	if rawget(_G, "JAZZ_NoMaps_CreateUnitDataWrapped") then
+		return
+	end
+	if type(CreateUnitData) ~= "function" then
+		return
+	end
+	local original = CreateUnitData
+	CreateUnitData = function(unit_template, session_id, ...)
+		if lShouldRun() and type(unit_template) == "string" then
+			local remapped = lRemapUnitTemplate(
+				unit_template,
+				"JAZZ_NoMapsCreate_" .. tostring(session_id or unit_template)
+			)
+			if remapped then
+				unit_template = remapped
+			end
+		end
+		return original(unit_template, session_id, ...)
+	end
+	JAZZ_NoMaps_CreateUnitDataWrapped = true
+end
+
+local function lInstallUnitMarkerWrapper()
+	if rawget(_G, "JAZZ_NoMaps_UnitMarkerWrapped") then
+		return
+	end
+	if not UnitMarker or type(UnitMarker.SpawnObjects) ~= "function" then
+		return
+	end
+	local original = UnitMarker.SpawnObjects
+	function UnitMarker:SpawnObjects(...)
+		if lShouldRun() and self.UnitDataSpawnDefs then
+			for _, entry in ipairs(self.UnitDataSpawnDefs) do
+				if entry and type(entry.UnitDataDefId) == "string" then
+					local remapped = lRemapUnitTemplate(
+						entry.UnitDataDefId,
+						"JAZZ_NoMapsMarker_" .. tostring(entry.UnitDataDefId)
+					)
+					if remapped then
+						entry.UnitDataDefId = remapped
+					end
+				end
+			end
+		end
+		return original(self, ...)
+	end
+	JAZZ_NoMaps_UnitMarkerWrapped = true
+end
+
 local function lRefreshEnemyLoadouts()
 	if not gv_Squads then
 		return
 	end
+	lRemapEnemyUnitTemplates()
 	local root = lEnsureState()
 	local remapped = 0
 	-- sorted_pairs: gv_Squads is a sparse id-map; ipairs stops at the first hole.
@@ -1026,6 +1397,8 @@ function JAZZ_NoMapsBootstrap(force)
 	root.active = true
 	lInstallGenerateEnemySquadWrapper()
 	lInstallWorldFlipGuard()
+	lInstallCreateUnitDataWrapper()
+	lInstallUnitMarkerWrapper()
 	lDisableMapsOnlyRegions(root)
 
 	local major_hq = lResolveMajorHQ()
@@ -1068,9 +1441,37 @@ function JAZZ_NoMapsBootstrap(force)
 		lUpgradeSectorSquadRefs(gv_Sectors[sector_id])
 	end
 
+	-- Re-collect managed set after auto-regions created.
+	managed = lManagedOutpostSet()
+	for sector_id in pairs(managed) do
+		lWireGuardpostSquadLists(gv_Sectors[sector_id])
+		lUpgradeSectorSquadRefs(gv_Sectors[sector_id])
+	end
+
 	root.bootstrapped = true
 	if rawget(_G, "JAZZ_LegionAIEnsureState") then
 		JAZZ_LegionAIEnsureState()
+	end
+	-- COMPAT-004: force Major HQ to vanilla camp (overwrite Ernie B28 latch).
+	if major_hq and rawget(_G, "JAZZ_LegionAIForceMajorHQ") then
+		JAZZ_LegionAIForceMajorHQ(major_hq)
+		lLog("forced Major HQ=" .. tostring(major_hq))
+	elseif major_hq and rawget(_G, "gv_JAZZ_LegionAI") and type(gv_JAZZ_LegionAI) == "table" then
+		gv_JAZZ_LegionAI.major = gv_JAZZ_LegionAI.major or {}
+		gv_JAZZ_LegionAI.major.hq_sector = major_hq
+		lLog("forced Major HQ (fallback)=" .. tostring(major_hq))
+	end
+	if rawget(_G, "JAZZ_LegionAIAdoptOutpostDefenders") then
+		local n = JAZZ_LegionAIAdoptOutpostDefenders()
+		if n and n > 0 then
+			lLog("adopted outpost defenders as garrison=" .. tostring(n))
+		end
+	end
+	if rawget(_G, "JAZZ_LegionAISeedPoiEconomy") then
+		local n = JAZZ_LegionAISeedPoiEconomy({ money = 1500, recruits = 10 })
+		if n and n > 0 then
+			lLog("seeded POI economy entries=" .. tostring(n))
+		end
 	end
 	lApplyEconomyRev(root)
 	lRefreshEnemyLoadouts()
@@ -1092,6 +1493,8 @@ function OnMsg.ModsReloaded()
 	if lShouldRun() then
 		lInstallGenerateEnemySquadWrapper()
 		lInstallWorldFlipGuard()
+		lInstallCreateUnitDataWrapper()
+		lInstallUnitMarkerWrapper()
 	end
 end
 
