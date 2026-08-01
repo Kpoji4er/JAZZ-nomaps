@@ -262,8 +262,9 @@ local LOOT_POOLS_FALLBACK_BY_MAJOR = {
 
 local LOOT_POOLS_FALLBACK = LOOT_POOLS_FALLBACK_BY_MAJOR[3]
 
--- Vanilla stem → JAZZ family key (pools below). Named / Hyena omitted on purpose:
--- match only stem + generic strength/map suffixes (not LegionRaider_Jose / Bastien).
+-- Vanilla stem → JAZZ family key (pools below). Named / Hyena omitted on purpose.
+-- Match stem + generic strength/map/tutorial suffixes (not LegionRaider_Jose / Bastien).
+-- Exact overrides: WeakFlagHill is Goon-named → assault T1 Roughneck, not front Marauder.
 local UNIT_GENERIC_SUFFIX = {
 	[""] = true,
 	["_Stronger"] = true,
@@ -276,12 +277,18 @@ local UNIT_GENERIC_SUFFIX = {
 	["_PresidentGuard"] = true,
 }
 
+-- Exact UnitData id → family (wins over stem). Force Goon role for Flag Hill openers.
+local UNIT_FAMILY_OVERRIDE = {
+	LegionRaider_WeakFlagHill = "assault",
+}
+
 local UNIT_FAMILY_BY_STEM = {
 	LegionGoon = "assault",
 	LegionManiac = "crusher",
 	LegionGrenadir = "grenadier",
 	LegionGrenadier = "grenadier",
 	LegionRaider = "front",
+	LegionMarauder = "front", -- tutorial id LegionMarauder_Tutorial (vanilla Name = Marauder)
 	LegionGunner = "gunner",
 	LegionSniper = "sniper",
 	LegionSharpShooter = "marksman",
@@ -519,12 +526,26 @@ local function lVanillaStrengthBump(unit_id)
 	return 0
 end
 
+local function lIsTutorialOrWeakOpener(unit_id)
+	if type(unit_id) ~= "string" then
+		return false
+	end
+	if unit_id == "LegionRaider_WeakFlagHill" then
+		return true
+	end
+	return string.find(unit_id, "_Tutorial", 1, true) and true or false
+end
+
 local function lMatchUnitFamily(unit_id)
 	if type(unit_id) ~= "string" or unit_id == "" then
 		return false
 	end
 	if string.sub(unit_id, 1, 11) == "JAZZ_Legion" then
 		return false
+	end
+	local override = UNIT_FAMILY_OVERRIDE[unit_id]
+	if override then
+		return override
 	end
 	-- Longest stem match, then require a generic suffix (skip named NPCs like LegionRaider_Jose).
 	local best, best_len = false, 0
@@ -565,7 +586,11 @@ local function lRemapUnitTemplate(vanilla_id, seed_key)
 	if not family then
 		return false
 	end
-	local class_tier = Max(1, Min(4, lCampaignClassTier() + lVanillaStrengthBump(vanilla_id)))
+	-- Tutorial / Flag Hill openers always T1 (do not scale with campaign major tier).
+	local class_tier = 1
+	if not lIsTutorialOrWeakOpener(vanilla_id) then
+		class_tier = Max(1, Min(4, lCampaignClassTier() + lVanillaStrengthBump(vanilla_id)))
+	end
 	local pools = UNIT_POOLS[family]
 	if not pools then
 		return false
