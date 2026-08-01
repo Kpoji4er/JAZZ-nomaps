@@ -1,4 +1,18 @@
-# gitignore
+# Local / agent scratch (keep Steam ignore_files in metadata.lua in sync for overlapping patterns)
+.agents/cache/
+.tmp/
+.tmp_*
+codex_worktrees/
+.ja3-root.local
+
+# Backups & Python
+*.bak
+*.bak_*
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor / OS
 *.psd
-.DS_Store
 Thumbs.db
+.DS_Store
