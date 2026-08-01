@@ -1,0 +1,45 @@
+name: Discord player updates
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      before_sha:
+        description: Optional base commit SHA; defaults to the parent of after_sha
+        required: false
+        type: string
+      after_sha:
+        description: Optional target commit SHA; defaults to the selected workflow ref
+        required: false
+        type: string
+      dry_run:
+        description: Build and log the sanitized payload without sending it to Discord
+        required: true
+        default: true
+        type: boolean
+      force_publish:
+        description: Test the same behavior as the [discord] commit marker
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build player update
+    uses: Kpoji4er/JAZZ/.github/workflows/discord-player-updates.yml@main
+    with:
+      before_sha: ${{ github.event_name == 'workflow_dispatch' && inputs.before_sha || '' }}
+      after_sha: ${{ github.event_name == 'workflow_dispatch' && inputs.after_sha || '' }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+      force_publish: ${{ github.event_name == 'workflow_dispatch' && inputs.force_publish || false }}
+      openai_model: ${{ vars.OPENAI_MODEL }}
+      discord_update_role_id: ${{ vars.DISCORD_UPDATE_ROLE_ID }}
+      discord_mention_update_role: ${{ vars.DISCORD_MENTION_UPDATE_ROLE }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
