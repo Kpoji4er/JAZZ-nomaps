@@ -262,7 +262,20 @@ local LOOT_POOLS_FALLBACK_BY_MAJOR = {
 
 local LOOT_POOLS_FALLBACK = LOOT_POOLS_FALLBACK_BY_MAJOR[3]
 
--- Vanilla stem → JAZZ family key (pools below). Named / Hyena omitted on purpose.
+-- Vanilla stem → JAZZ family key (pools below). Named / Hyena omitted on purpose:
+-- match only stem + generic strength/map suffixes (not LegionRaider_Jose / Bastien).
+local UNIT_GENERIC_SUFFIX = {
+	[""] = true,
+	["_Stronger"] = true,
+	["_Stronger_Elite"] = true,
+	["_Elite"] = true,
+	["_Ernie_Elite"] = true,
+	["_WeakFlagHill"] = true,
+	["_Tutorial"] = true,
+	["_SlowReloader"] = true,
+	["_PresidentGuard"] = true,
+}
+
 local UNIT_FAMILY_BY_STEM = {
 	LegionGoon = "assault",
 	LegionManiac = "crusher",
@@ -513,12 +526,19 @@ local function lMatchUnitFamily(unit_id)
 	if string.sub(unit_id, 1, 11) == "JAZZ_Legion" then
 		return false
 	end
-	-- Exact / longest stem match.
+	-- Longest stem match, then require a generic suffix (skip named NPCs like LegionRaider_Jose).
 	local best, best_len = false, 0
 	for stem, family in pairs(UNIT_FAMILY_BY_STEM) do
 		if string.sub(unit_id, 1, #stem) == stem and #stem > best_len then
 			best, best_len = family, #stem
 		end
+	end
+	if not best then
+		return false
+	end
+	local suffix = string.sub(unit_id, best_len + 1)
+	if not UNIT_GENERIC_SUFFIX[suffix] then
+		return false
 	end
 	return best
 end
