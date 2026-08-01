@@ -674,6 +674,10 @@ local function lDisableMapsOnlyRegions(root)
 			goto next_region
 		end
 		local rid = lRegionId(region)
+		-- Never disable runtime auto-regions (ReloadLua can empty ManagedOutposts).
+		if type(rid) == "string" and string.find(rid, "JAZZ_Auto_", 1, true) == 1 then
+			goto next_region
+		end
 		local bad = rid == "ErnieIsland"
 		local hq = region.MajorHQSector
 		if hq and hq ~= "" and not (gv_Sectors and gv_Sectors[hq]) then
@@ -861,6 +865,26 @@ local function lAssignSectorsToOutposts(outposts)
 		table.sort(buckets[outpost_id])
 	end
 	return buckets
+end
+
+-- Re-apply auto-region ManagedOutposts after ReloadLua / empty stubs.
+local function lRefreshTrackedAutoRegions(root)
+	if not Regions or not gv_Sectors then
+		return 0
+	end
+	local refreshed = 0
+	for outpost_id in pairs(root.auto_regions or empty_table) do
+		if type(outpost_id) == "string" and gv_Sectors[outpost_id] and gv_Sectors[outpost_id].Guardpost then
+			local buckets = lAssignSectorsToOutposts({ outpost_id })
+			local major_hq = lResolveMajorHQ() or outpost_id
+			local region = lCreateAutoRegion(outpost_id, buckets[outpost_id], major_hq)
+			if region then
+				root.auto_regions[outpost_id] = lRegionId(region)
+				refreshed = refreshed + 1
+			end
+		end
+	end
+	return refreshed
 end
 
 local g_JAZZ_NoMapsMissingSquadLogged = {}
@@ -1429,6 +1453,16 @@ local function lRemapUnitDataSession(session_id, unitdata)
 	if not new_id then
 		return false
 	end
+	-- CreateUnitData resets Squad; preserve membership so Traveling/ops don't see squad=false.
+	local prev_squad = unitdata.Squad
+	if (not prev_squad or not (gv_Squads and gv_Squads[prev_squad])) and gv_Squads then
+		for sid, squad in pairs(gv_Squads) do
+			if type(squad) == "table" and table.find(squad.units, session_id) then
+				prev_squad = sid
+				break
+			end
+		end
+	end
 	local seed = unitdata.randomization_seed
 		or InteractionRand(nil, "JAZZ_NoMapsRemapSeed_" .. tostring(session_id))
 	if unitdata.delete then
@@ -1436,11 +1470,47 @@ local function lRemapUnitDataSession(session_id, unitdata)
 	end
 	gv_UnitData[session_id] = false
 	local ok, err = pcall(CreateUnitData, new_id, session_id, seed)
-	if not ok or not gv_UnitData[session_id] then
+	local fresh = ok and gv_UnitData[session_id]
+	if not fresh then
 		lLog(string.format("unit remap %s→%s failed: %s", tostring(old_class), tostring(new_id), tostring(err)))
 		return false
 	end
+	if prev_squad and gv_Squads and gv_Squads[prev_squad] then
+		fresh.Squad = prev_squad
+		local live = g_Units and g_Units[session_id]
+		if live then
+			live.Squad = prev_squad
+		end
+	end
 	return true
+end
+
+-- Repair UnitData.Squad when still listed in SatelliteSquad.units (legacy remap orphans).
+local function lRepairOrphanSquadLinks()
+	if not gv_Squads or not gv_UnitData then
+		return 0
+	end
+	local fixed = 0
+	for _, squad in sorted_pairs(gv_Squads) do
+		local squad_id = squad and squad.UniqueId
+		if squad_id then
+			for _, session_id in ipairs(squad.units or empty_table) do
+				local ud = gv_UnitData[session_id]
+				if type(ud) == "table" and (not ud.Squad or not gv_Squads[ud.Squad]) then
+					ud.Squad = squad_id
+					local live = g_Units and g_Units[session_id]
+					if live then
+						live.Squad = squad_id
+					end
+					fixed = fixed + 1
+				end
+			end
+		end
+	end
+	if fixed > 0 then
+		lLog("repaired UnitData.Squad links=" .. tostring(fixed))
+	end
+	return fixed
 end
 
 local function lRemapEnemyUnitTemplates()
@@ -1468,6 +1538,7 @@ local function lRemapEnemyUnitTemplates()
 			root.geared[session_id] = nil
 		end
 	end
+	lRepairOrphanSquadLinks()
 	if count > 0 then
 		lLog("remapped UnitData templates=" .. count)
 	end
@@ -1601,6 +1672,30 @@ local function lApplyEconomyRev(root)
 	lLog("applied AI economy rev " .. tostring(AI_ECONOMY_REV))
 end
 
+local function lCountHealthyAutoRegions()
+	local n = 0
+	for region_id, region in pairs(Regions or empty_table) do
+		if type(region_id) == "string"
+			and string.find(region_id, "JAZZ_Auto_", 1, true) == 1
+			and region
+			and region.LegionAIEnabled
+			and type(region.ManagedOutposts) == "table"
+			and #region.ManagedOutposts > 0
+		then
+			n = n + 1
+		end
+	end
+	return n
+end
+
+local function lCountTrackedAutoRegions(root)
+	local n = 0
+	for _ in pairs(root.auto_regions or empty_table) do
+		n = n + 1
+	end
+	return n
+end
+
 function JAZZ_NoMapsBootstrap(force)
 	local root = lEnsureState()
 	if not lShouldRun() then
@@ -1610,8 +1705,39 @@ function JAZZ_NoMapsBootstrap(force)
 	if not gv_Sectors then
 		return false
 	end
+	-- Soft path only when mainland auto-regions are still healthy.
+	-- Empty auto_regions + bootstrapped=true was a regression: InitSatelliteView
+	-- returned early and left only ErnieIsland remnant (HQ=false).
 	if root.bootstrapped and not force then
-		return true
+		local healthy = lCountHealthyAutoRegions()
+		local tracked = lCountTrackedAutoRegions(root)
+		if healthy > 0 and tracked > 0 then
+			root.active = true
+			lInstallGenerateEnemySquadWrapper()
+			lInstallWorldFlipGuard()
+			lInstallCreateUnitDataWrapper()
+			lInstallUnitMarkerWrapper()
+			lRefreshTrackedAutoRegions(root)
+			lRepairOrphanSquadLinks()
+			local major_hq = lResolveMajorHQ()
+			if rawget(_G, "JAZZ_LegionAIEnsureState") then
+				JAZZ_LegionAIEnsureState()
+			end
+			if major_hq and rawget(_G, "JAZZ_LegionAIForceMajorHQ") then
+				JAZZ_LegionAIForceMajorHQ(major_hq)
+			elseif major_hq and rawget(_G, "gv_JAZZ_LegionAI") and type(gv_JAZZ_LegionAI) == "table" then
+				gv_JAZZ_LegionAI.major = gv_JAZZ_LegionAI.major or {}
+				gv_JAZZ_LegionAI.major.hq_sector = major_hq
+			end
+			lEnsureLegionTierRawset()
+			return true
+		end
+		lLog(string.format(
+			"bootstrap re-run: healthy_auto=%d tracked=%d",
+			healthy,
+			tracked
+		))
+		root.bootstrapped = false
 	end
 
 	root.active = true
@@ -1624,6 +1750,10 @@ function JAZZ_NoMapsBootstrap(force)
 	local major_hq = lResolveMajorHQ()
 	local managed = lManagedOutpostSet()
 	local all_posts = lCollectGuardposts()
+	if #all_posts == 0 then
+		lLog("bootstrap deferred: no surface Guardposts yet")
+		return false
+	end
 	local unmanaged = {}
 	for _, sector_id in ipairs(all_posts) do
 		if not managed[sector_id] then
@@ -1637,6 +1767,11 @@ function JAZZ_NoMapsBootstrap(force)
 		if sector and (sector.Side == "enemy1" or sector.Side == "enemy2" or sector.InitialSquads) then
 			lUpgradeSectorSquadRefs(sector)
 		end
+	end
+
+	-- If disable left nothing managed but auto stubs are empty, treat all posts as unmanaged.
+	if #unmanaged == 0 and lCountHealthyAutoRegions() == 0 then
+		unmanaged = table.copy(all_posts)
 	end
 
 	if #unmanaged > 0 then
@@ -1668,7 +1803,7 @@ function JAZZ_NoMapsBootstrap(force)
 		lUpgradeSectorSquadRefs(gv_Sectors[sector_id])
 	end
 
-	root.bootstrapped = true
+	-- Keep bootstrapped=false until AI seed finishes so InitSatelliteView can retry after errors.
 	if rawget(_G, "JAZZ_LegionAIEnsureState") then
 		JAZZ_LegionAIEnsureState()
 	end
@@ -1688,8 +1823,10 @@ function JAZZ_NoMapsBootstrap(force)
 		end
 	end
 	if rawget(_G, "JAZZ_LegionAISeedPoiEconomy") then
-		local n = JAZZ_LegionAISeedPoiEconomy({ money = 1500, recruits = 10 })
-		if n and n > 0 then
+		local ok, n = pcall(JAZZ_LegionAISeedPoiEconomy, { money = 1500, recruits = 10 })
+		if not ok then
+			lLog("SeedPoiEconomy failed: " .. tostring(n))
+		elseif n and n > 0 then
 			lLog("seeded POI economy entries=" .. tostring(n))
 		end
 	end
@@ -1697,6 +1834,14 @@ function JAZZ_NoMapsBootstrap(force)
 	-- Tier rawset BEFORE gear refresh so Rifleman_Firearm quest conditions see JAZZ_Legion_Tier.
 	lEnsureLegionTierRawset()
 	lRefreshEnemyLoadouts()
+	lRepairOrphanSquadLinks()
+	local healthy = lCountHealthyAutoRegions()
+	if healthy <= 0 then
+		lLog("bootstrap incomplete: no healthy JAZZ_Auto_* regions; will retry")
+		root.bootstrapped = false
+		return false
+	end
+	root.bootstrapped = true
 	return true
 end
 
