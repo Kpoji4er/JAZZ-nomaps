@@ -342,7 +342,9 @@ local UNIT_POOLS = {
 		[4] = { "JAZZ_Legion_GunnerT4_MercGunner" },
 	},
 	sniper = {
-		[1] = { "JAZZ_Legion_FrontT1_Rifleman", "JAZZ_Legion_FrontT2_Ambusher" },
+		-- T1: only Rifleman — Ambusher is T2 archetype; at tier 11 its primary can miss
+		-- and night gear leaves FlareHandgun as the only "Firearm" in hands.
+		[1] = { "JAZZ_Legion_FrontT1_Rifleman" },
 		[2] = { "JAZZ_Legion_FrontT2_Ambusher", "JAZZ_Legion_FrontT2_Marksman" },
 		[3] = { "JAZZ_Legion_FrontT3_Sniper" },
 		[4] = { "JAZZ_Legion_FrontT4_MercenarySniper" },
@@ -385,8 +387,10 @@ local UNIT_POOLS = {
 	},
 }
 
--- Gear refresh revision: 1 = strip+CSE+ammo; 2 = +legacy armor → JazzArmor remap.
-local GEAR_REV = 2
+-- Gear refresh revision: 1 = strip+CSE+ammo; 2 = +legacy armor → JazzArmor remap;
+-- 3 = tier rawset before CSE + ensure firearm + sync live Unit;
+-- 4 = FlareGun is not a combat firearm; sniper T1 pool without Ambusher.
+local GEAR_REV = 4
 
 -- Economy rev: 1 = Truncated TaxCap=0/manpower=12 freeze; 2 = playable Global AI defaults.
 local AI_ECONOMY_REV = 2
@@ -1251,6 +1255,104 @@ local function lSanitizeUnitAmmo(unitdata)
 	end)
 end
 
+local function lStripInventory(inv)
+	if not inv or not inv.ForEachItem then
+		return
+	end
+	local doomed = {}
+	inv:ForEachItem(function(item, slot_name)
+		doomed[#doomed + 1] = { item = item, slot = slot_name }
+	end)
+	for _, entry in ipairs(doomed) do
+		inv:RemoveItem(entry.slot, entry.item)
+	end
+end
+
+local function lIsCombatFirearm(item)
+	if not item then
+		return false
+	end
+	-- Match jazz System_OR_Unit: FlareGun/HeavyWeapon are not usable "Firearm" combat kits.
+	if not IsKindOf(item, "Firearm") then
+		return false
+	end
+	if IsKindOfClasses(item, "HeavyWeapon", "FlareGun") then
+		return false
+	end
+	return true
+end
+
+-- Hard guarantee after CSE: Rifleman/Ambusher primary can miss; FlareHandgun must not count.
+local function lEnsureFirearm(inv)
+	if not inv or not inv.ForEachItem then
+		return false
+	end
+	local has = false
+	inv:ForEachItem(function(item)
+		if lIsCombatFirearm(item) then
+			has = true
+		end
+	end)
+	if has then
+		return false
+	end
+	local gun_class = "SKS"
+	if not lItemAllowed(gun_class) then
+		gun_class = "AK47"
+	end
+	if not lItemAllowed(gun_class) then
+		return false
+	end
+	local gun = PlaceInventoryItem(gun_class)
+	if not gun then
+		return false
+	end
+	if inv.AddItem then
+		-- Prefer handheld; fall back to backpack Inventory.
+		local left = inv:AddItem("Handheld A", gun)
+		if not left then
+			inv:AddItem("Inventory", gun)
+		end
+	end
+	if gun.Caliber then
+		local ammo = lPlaceCaliberAmmo(gun.Caliber, 30)
+		if ammo then
+			inv:AddItem("Inventory", ammo)
+			if gun.Reload then
+				gun:Reload(ammo, "suspend_fx")
+			end
+		end
+	end
+	return true
+end
+
+local function lRegearInventory(inv, seed)
+	if not inv then
+		return 0
+	end
+	lStripInventory(inv)
+	if inv.CreateStartingEquipment then
+		inv:CreateStartingEquipment(seed)
+	end
+	lSanitizeUnitAmmo(inv)
+	if lEnsureFirearm(inv) then
+		lLog("ensured fallback firearm on " .. tostring(inv.class or inv.session_id or "?"))
+	end
+	return lSanitizeUnitArmor(inv)
+end
+
+local function lEnsureLegionTierRawset()
+	if rawget(_G, "JAZZ_UpdateLegionTierForNoMaps") then
+		JAZZ_UpdateLegionTierForNoMaps()
+	end
+	-- Loot QuestIsVariableNum uses rawget; metatable default 11 is invisible until SetQuestVar.
+	local quest = QuestGetState and QuestGetState("JAZZ_LegionTier")
+	if quest and SetQuestVar and rawget(quest, "JAZZ_Legion_Tier") == nil then
+		SetQuestVar(quest, "JAZZ_Legion_Tier", 11)
+		lLog("rawset JAZZ_Legion_Tier=11 for loot conditions")
+	end
+end
+
 local function lRemapUnitDataSession(session_id, unitdata)
 	if not unitdata or not session_id or not CreateUnitData then
 		return false
@@ -1359,6 +1461,7 @@ local function lRefreshEnemyLoadouts()
 	if not gv_Squads then
 		return
 	end
+	lEnsureLegionTierRawset()
 	lRemapEnemyUnitTemplates()
 	local root = lEnsureState()
 	local remapped = 0
@@ -1383,17 +1486,18 @@ local function lRefreshEnemyLoadouts()
 					or unitdata.Affiliation == "Thugs")
 			then
 				local already = root.geared[unit_id]
-				if not already then
-					unitdata:ForEachItem(function(item, slot_name)
-						unitdata:RemoveItem(slot_name, item)
-					end)
-					if unitdata.CreateStartingEquipment then
-						unitdata:CreateStartingEquipment(unitdata.randomization_seed)
+				local seed = unitdata.randomization_seed
+				-- Full regear when never geared or still on older GEAR_REV (unarmed lock).
+				if not already or already < GEAR_REV then
+					local unit = g_Units and g_Units[unit_id]
+					if unit and unit.ForEachItem then
+						remapped = remapped + lRegearInventory(unit, seed)
 					end
-					lSanitizeUnitAmmo(unitdata)
+					remapped = remapped + lRegearInventory(unitdata, seed)
+				else
+					-- Should not reach: geared==GEAR_REV skipped above.
+					remapped = remapped + lSanitizeUnitArmor(unitdata)
 				end
-				-- Always run armor remap (covers rev1 units that still wear Flak/Kevlar stubs).
-				remapped = remapped + lSanitizeUnitArmor(unitdata)
 				root.geared[unit_id] = GEAR_REV
 			end
 			::next_unit::
@@ -1523,10 +1627,9 @@ function JAZZ_NoMapsBootstrap(force)
 		end
 	end
 	lApplyEconomyRev(root)
+	-- Tier rawset BEFORE gear refresh so Rifleman_Firearm quest conditions see JAZZ_Legion_Tier.
+	lEnsureLegionTierRawset()
 	lRefreshEnemyLoadouts()
-	if rawget(_G, "JAZZ_UpdateLegionTierForNoMaps") then
-		JAZZ_UpdateLegionTierForNoMaps()
-	end
 	return true
 end
 
