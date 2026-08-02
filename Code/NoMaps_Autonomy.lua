@@ -1,8 +1,9 @@
 -- JAZZ Vanilla Maps (7MsJ2Eq, package jazz-nomaps) — autonomy when jazz-maps (FhNNYd) is not loaded.
 -- Vanilla HotDiamonds geography only. No-op while FhNNYd is active.
--- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-005.md
+-- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-006.md
 -- COMPAT-004: Major HQ force A20; adopt InitialSquads; seed POI; UnitData remap; tiered container loot.
 -- COMPAT-005: true T1-only Early squad + class-tier cap on gear major I (day-1 weight class).
+-- COMPAT-006/007: multi-outpost Voronoi + ai_region_rev; 007 = unbounded nearest-outpost (full surface coverage).
 
 JAZZ_NOMAPS_ID = "7MsJ2Eq"
 JAZZ_MAPS_MOD_ID = "FhNNYd"
@@ -31,6 +32,7 @@ GameVar("gv_JAZZ_NoMaps", function()
 		geared = {},
 		disabled_regions = {},
 		ai_economy_rev = 0,
+		ai_region_rev = 0,
 	}
 end)
 
@@ -87,6 +89,8 @@ local function lEnsureState()
 	root.auto_regions = root.auto_regions or {}
 	root.geared = root.geared or {}
 	root.disabled_regions = root.disabled_regions or {}
+	root.ai_economy_rev = root.ai_economy_rev or 0
+	root.ai_region_rev = root.ai_region_rev or 0
 	return root
 end
 
@@ -408,6 +412,14 @@ local GEAR_REV = 4
 
 -- Economy rev: 1 = Truncated TaxCap=0/manpower=12 freeze; 2 = playable Global AI defaults.
 local AI_ECONOMY_REV = 2
+
+-- Region catchment rev:
+--   1 = COMPAT-006 Chebyshev R=3 + multi-outpost Voronoi (left peripheral orphans).
+--   2 = COMPAT-007 unbounded nearest-outpost Voronoi (full surface coverage; mop≤1; foreign_gp=0).
+-- Existing saves rebuild JAZZ_Auto_* Sectors when ai_region_rev < AI_REGION_REV.
+local AI_REGION_REV = 2
+-- false = unbounded Chebyshev nearest-outpost; number = hard distance cap (legacy).
+local AUTO_REGION_RADIUS = false
 
 -- Vanilla / incomplete JAZZ stubs (no ArmorRating) → playable JazzArmor_* (Sergej: light→flak, medium→kevlar/Guardian, heavy→Guardian heavy; helms/pants same bands).
 local ARMOR_REMAP = {
@@ -844,6 +856,7 @@ local function lAssignSectorsToOutposts(outposts)
 	for _, outpost_id in ipairs(outposts) do
 		buckets[outpost_id] = { outpost_id }
 	end
+	local radius = AUTO_REGION_RADIUS -- false = unbounded (COMPAT-007)
 	for sector_id, sector in sorted_pairs(gv_Sectors or empty_table) do
 		if not lSectorIsSurface(sector) then
 			goto continue
@@ -855,7 +868,8 @@ local function lAssignSectorsToOutposts(outposts)
 				best, best_dist = outpost_id, d
 			end
 		end
-		if best and best_dist <= 8 and sector_id ~= best then
+		local within = best and (not radius or best_dist <= radius)
+		if within and sector_id ~= best then
 			local list = buckets[best]
 			list[#list + 1] = sector_id
 		end
@@ -867,24 +881,48 @@ local function lAssignSectorsToOutposts(outposts)
 	return buckets
 end
 
--- Re-apply auto-region ManagedOutposts after ReloadLua / empty stubs.
+-- Re-apply auto-region Sectors / ManagedOutposts after ReloadLua / empty stubs / region rev.
+-- Always Voronoi across ALL tracked outposts (single-outpost assign inflated catchments).
 local function lRefreshTrackedAutoRegions(root)
 	if not Regions or not gv_Sectors then
 		return 0
 	end
-	local refreshed = 0
+	local outposts = {}
 	for outpost_id in pairs(root.auto_regions or empty_table) do
 		if type(outpost_id) == "string" and gv_Sectors[outpost_id] and gv_Sectors[outpost_id].Guardpost then
-			local buckets = lAssignSectorsToOutposts({ outpost_id })
-			local major_hq = lResolveMajorHQ() or outpost_id
-			local region = lCreateAutoRegion(outpost_id, buckets[outpost_id], major_hq)
-			if region then
-				root.auto_regions[outpost_id] = lRegionId(region)
-				refreshed = refreshed + 1
-			end
+			outposts[#outposts + 1] = outpost_id
+		end
+	end
+	table.sort(outposts)
+	if #outposts == 0 then
+		return 0
+	end
+	local buckets = lAssignSectorsToOutposts(outposts)
+	local major_hq = lResolveMajorHQ()
+	local refreshed = 0
+	for _, outpost_id in ipairs(outposts) do
+		local region = lCreateAutoRegion(outpost_id, buckets[outpost_id], major_hq or outpost_id)
+		if region then
+			root.auto_regions[outpost_id] = lRegionId(region)
+			refreshed = refreshed + 1
 		end
 	end
 	return refreshed
+end
+
+local function lApplyRegionRev(root)
+	if (root.ai_region_rev or 0) >= AI_REGION_REV then
+		return false
+	end
+	local n = lRefreshTrackedAutoRegions(root)
+	root.ai_region_rev = AI_REGION_REV
+	lLog(string.format(
+		"applied AI region rev %s (radius=%s, refreshed=%d)",
+		tostring(AI_REGION_REV),
+		AUTO_REGION_RADIUS == false and "unbounded" or tostring(AUTO_REGION_RADIUS),
+		n
+	))
+	return true
 end
 
 local g_JAZZ_NoMapsMissingSquadLogged = {}
@@ -1718,6 +1756,7 @@ function JAZZ_NoMapsBootstrap(force)
 			lInstallCreateUnitDataWrapper()
 			lInstallUnitMarkerWrapper()
 			lRefreshTrackedAutoRegions(root)
+			lApplyRegionRev(root)
 			lRepairOrphanSquadLinks()
 			local major_hq = lResolveMajorHQ()
 			if rawget(_G, "JAZZ_LegionAIEnsureState") then
@@ -1790,6 +1829,11 @@ function JAZZ_NoMapsBootstrap(force)
 	else
 		lLog("no unmanaged guardposts after maps-only disable")
 	end
+
+	-- COMPAT-006: always re-Voronoi tracked auto-regions (force path skipped soft refresh
+	-- when every Guardpost was already managed → stale huge Sectors survived).
+	lRefreshTrackedAutoRegions(root)
+	root.ai_region_rev = AI_REGION_REV
 
 	for sector_id in pairs(managed) do
 		lWireGuardpostSquadLists(gv_Sectors[sector_id])
