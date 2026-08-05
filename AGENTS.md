@@ -19,5 +19,5 @@
 - Не править `jazz-maps/**`.
 - Не копировать UnitData/EnemySquad — читать `jazz-units`.
 - Сектора/аванпосты: vanilla `CampaignPreset` (Major HQ `A20`, Ernie fortress `H4`).
-- Authored `ErnieIsland` (I7/B28) maps-only — runtime disable в этом пакете.
+- Authored maps Regions (`ErnieIsland`, `PortCacaoEnvirons`, `GreatDesert`, `MountainSteppe`, `FleatownEnvirons`, `LaBarrier`, `GreatForest`, …) — runtime disable managed maps-only AI в этом пакете.
 - ModDef id: `7MsJ2Eq` (не менять после Workshop upload).

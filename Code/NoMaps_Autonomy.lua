@@ -692,7 +692,7 @@ local function lDisableMapsOnlyRegions(root)
 		if type(rid) == "string" and string.find(rid, "JAZZ_Auto_", 1, true) == 1 then
 			goto next_region
 		end
-		local bad = rid == "ErnieIsland"
+		local bad = rid == "ErnieIsland" or rid == "PortCacaoEnvirons" or rid == "GreatDesert" or rid == "MountainSteppe" or rid == "FleatownEnvirons" or rid == "LaBarrier" or rid == "GreatForest"
 		local hq = region.MajorHQSector
 		if hq and hq ~= "" and not (gv_Sectors and gv_Sectors[hq]) then
 			bad = true
