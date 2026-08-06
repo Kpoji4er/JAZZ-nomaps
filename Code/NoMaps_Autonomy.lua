@@ -1,6 +1,6 @@
 -- JAZZ Vanilla Maps (7MsJ2Eq, package jazz-nomaps) — autonomy when jazz-maps (FhNNYd) is not loaded.
 -- Vanilla HotDiamonds geography only. No-op while FhNNYd is active.
--- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-006.md
+-- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-009.md
 -- COMPAT-004: Major HQ force A20; adopt InitialSquads; seed POI; UnitData remap; tiered container loot.
 -- COMPAT-005: true T1-only Early squad + class-tier cap on gear major I (day-1 weight class).
 -- COMPAT-006/007: multi-outpost Voronoi + ai_region_rev; 007 = unbounded nearest-outpost (full surface coverage).
@@ -8,11 +8,14 @@
 JAZZ_NOMAPS_ID = "7MsJ2Eq"
 JAZZ_MAPS_MOD_ID = "FhNNYd"
 JAZZ_NOMAPS_MAJOR_HQ = "A20" -- vanilla The Eagle's Nest / Major's Camp
+local JAZZ_NOMAPS_INITIAL_SQUAD_MAX = 30
 
 -- Strict globals: runtime OnMsg cannot *create* new _G keys (Assert "Attempt to create a new global").
 -- Predeclare wrap flags/bases at file load (like jazz Guardpost_Patrols.lua); prefer rawset for writes.
 g_JAZZ_NoMapsGenerateEnemySquadWrapped = rawget(_G, "g_JAZZ_NoMapsGenerateEnemySquadWrapped") or false
 g_JAZZ_NoMapsBaseGenerateEnemySquad = rawget(_G, "g_JAZZ_NoMapsBaseGenerateEnemySquad") or false
+g_JAZZ_NoMapsGenerateUnitsFromTemplatesWrapped = rawget(_G, "g_JAZZ_NoMapsGenerateUnitsFromTemplatesWrapped") or false
+g_JAZZ_NoMapsBaseGenerateUnitsFromTemplates = rawget(_G, "g_JAZZ_NoMapsBaseGenerateUnitsFromTemplates") or false
 g_JAZZ_NoMapsWorldFlipGuarded = rawget(_G, "g_JAZZ_NoMapsWorldFlipGuarded") or false
 g_JAZZ_NoMapsBaseWorldFlip = rawget(_G, "g_JAZZ_NoMapsBaseWorldFlip") or false
 JAZZ_NoMaps_CreateUnitDataWrapped = rawget(_G, "JAZZ_NoMaps_CreateUnitDataWrapped") or false
@@ -1032,7 +1035,43 @@ local function lUpgradeSectorSquadRefs(sector)
 	end
 end
 
+local function lCapInitialSquadTemplates(unit_template_ids, base_session_id)
+	if type(base_session_id) ~= "string"
+		or string.find(base_session_id, "InitialSquad", 1, true) ~= 1
+		or type(unit_template_ids) ~= "table"
+		or #unit_template_ids <= JAZZ_NOMAPS_INITIAL_SQUAD_MAX
+	then
+		return unit_template_ids
+	end
+	local capped = {}
+	for i = 1, JAZZ_NOMAPS_INITIAL_SQUAD_MAX do
+		capped[i] = unit_template_ids[i]
+	end
+	return capped
+end
+
+local function lInstallGenerateUnitsFromTemplatesWrapper()
+	if rawget(_G, "g_JAZZ_NoMapsGenerateUnitsFromTemplatesWrapped") then
+		return
+	end
+	local base = rawget(_G, "GenerateUnitsFromTemplates")
+	if type(base) ~= "function" then
+		return
+	end
+	rawset(_G, "g_JAZZ_NoMapsBaseGenerateUnitsFromTemplates", base)
+	rawset(_G, "g_JAZZ_NoMapsGenerateUnitsFromTemplatesWrapped", true)
+	function GenerateUnitsFromTemplates(sector_id, unit_template_ids, base_session_id, new_unit_names, new_unit_appearance)
+		if lShouldRun() then
+			unit_template_ids = lCapInitialSquadTemplates(unit_template_ids, base_session_id)
+		end
+		return g_JAZZ_NoMapsBaseGenerateUnitsFromTemplates(
+			sector_id, unit_template_ids, base_session_id, new_unit_names, new_unit_appearance
+		)
+	end
+end
+
 local function lInstallGenerateEnemySquadWrapper()
+	lInstallGenerateUnitsFromTemplatesWrapper()
 	if rawget(_G, "g_JAZZ_NoMapsGenerateEnemySquadWrapped") then
 		return
 	end
