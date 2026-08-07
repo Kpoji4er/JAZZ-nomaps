@@ -27,6 +27,8 @@ on:
 
 permissions:
   contents: read
+  # Required by reusable JAZZ workflow (Actions API dedup after twin-post fix).
+  actions: read
 
 jobs:
   publish:
