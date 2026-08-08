@@ -1,0 +1,19 @@
+# Thin caller → reusable packer in Kpoji4er/JAZZ (LFS-safe player ZIP).
+name: Publish playable zip
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Pack playable ZIP
+    uses: Kpoji4er/JAZZ/.github/workflows/publish-playable-zip.yml@main
+    with:
+      package_dirname: jazz-nomaps
+      artifact_name: jazz-nomaps-playable.zip
