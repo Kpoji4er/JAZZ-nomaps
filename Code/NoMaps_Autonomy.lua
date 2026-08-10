@@ -133,7 +133,7 @@ local SQUAD_REMAP = {
 	LegionDefenders_Easy = "LegionGlobalAI_Garrison",
 	LegionDefenders_Mobile_Easy = "LegionGlobalAI_Patrol",
 	LegionDefenders_Shooters_Easy = "LegionAttackers_JazzBalanced_Easy_Assault",
-	FortressDefenders = "LegionFortressDefenders",
+	FortressDefenders = "FortressDefenders_NoMaps",
 	-- FortressPierre: keep vanilla (1x Pierre + PierreGuard). Remapping to
 	-- LegionJAZZSquadT2 dropped the boss — elite Legion got group "Pierre",
 	-- spoke Pierre_1 with GenerateEliteUnitName ("Kingboy Life").
@@ -193,7 +193,7 @@ local SQUAD_REMAP = {
 }
 
 local ROLE_LISTS = {
-	garrison = { "LegionGlobalAI_Garrison", "FortressDefenders", "LegionFortressDefenders" },
+	garrison = { "LegionGlobalAI_Garrison", "FortressDefenders_NoMaps" },
 	patrol = { "LegionGlobalAI_Patrol", "LegionJAZZSquadT1_Early", "LegionAttackers_Balanced_Easy_Assault" },
 	recon = { "LegionGlobalAI_Recon", "LegionJAZZSquadT1_Early" },
 	qrf = { "LegionJAZZSquadT2", "LegionHeavyTroops" },
