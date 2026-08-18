@@ -1,7 +1,8 @@
 -- JAZZ Vanilla Maps (7MsJ2Eq, package jazz-nomaps) — autonomy when jazz-maps (FhNNYd) is not loaded.
 -- Vanilla HotDiamonds geography only. No-op while FhNNYd is active.
--- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-009.md
+-- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-010.md
 -- COMPAT-004: Major HQ force A20; adopt InitialSquads; seed POI; UnitData remap; tiered container loot.
+-- COMPAT-010: skip class-remap and gear refresh for G6 LegionWaterWell / A2 DiamondRedSquad / F5 beach InitialSquad; Pierrot conflict_ignore.
 -- COMPAT-005: true T1-only Early squad + class-tier cap on gear major I (day-1 weight class).
 -- COMPAT-006/007: multi-outpost Voronoi + ai_region_rev; 007 = unbounded nearest-outpost (full surface coverage).
 
@@ -22,6 +23,7 @@ JAZZ_NoMaps_CreateUnitDataWrapped = rawget(_G, "JAZZ_NoMaps_CreateUnitDataWrappe
 JAZZ_NoMaps_BaseCreateUnitData = rawget(_G, "JAZZ_NoMaps_BaseCreateUnitData") or false
 JAZZ_NoMaps_UnitMarkerWrapped = rawget(_G, "JAZZ_NoMaps_UnitMarkerWrapped") or false
 JAZZ_NoMaps_BaseUnitMarkerSpawnObjects = rawget(_G, "JAZZ_NoMaps_BaseUnitMarkerSpawnObjects") or false
+g_JAZZ_NoMapsSkipUnitRemap = rawget(_G, "g_JAZZ_NoMapsSkipUnitRemap") or false
 JAZZ_StandaloneNoMapsBootstrap = rawget(_G, "JAZZ_StandaloneNoMapsBootstrap") or false
 JAZZ_StandaloneNoMapsIsActive = rawget(_G, "JAZZ_StandaloneNoMapsIsActive") or false
 
@@ -191,6 +193,16 @@ local SQUAD_REMAP = {
 	ThugsAttackers = "LegionJAZZSquadT1_Early",
 	Thugs_Raid = "LegionJAZZSquadT1_Early",
 	ThugEnforcers = "LegionJAZZSquadT1_Early",
+}
+
+-- COMPAT-010: story satellite defs keep vanilla UnitData class (miners / beach captain).
+local STORY_SQUAD_KEEP_VANILLA_UNITS = {
+	DiamondRedSquad = true,
+}
+
+-- COMPAT-010: map-marker groups whose quest TCE keys off the group name.
+local QUEST_MARKER_GROUPS_KEEP_VANILLA = {
+	LegionWaterWell = true,
 }
 
 local ROLE_LISTS = {
@@ -600,6 +612,98 @@ local function lMatchUnitFamily(unit_id)
 	return best
 end
 
+local function lGroupsContainKeep(groups)
+	if type(groups) ~= "table" then
+		return false
+	end
+	for i = 1, #groups do
+		local g = groups[i]
+		if type(g) == "string" and QUEST_MARKER_GROUPS_KEEP_VANILLA[g] then
+			return true
+		end
+	end
+	for g, v in pairs(groups) do
+		if type(g) == "string" and QUEST_MARKER_GROUPS_KEEP_VANILLA[g] and v then
+			return true
+		end
+	end
+	return false
+end
+
+local function lMarkerHasQuestKeepGroup(marker)
+	return marker and lGroupsContainKeep(marker.Groups)
+end
+
+local function lShouldKeepVanillaUnitClass(session_id, unitdata)
+	if rawget(_G, "g_JAZZ_NoMapsSkipUnitRemap") then
+		return true
+	end
+	if lGroupsContainKeep(unitdata and unitdata.Groups) then
+		return true
+	end
+	local units = rawget(_G, "g_Units")
+	local live = units and session_id and units[session_id]
+	if live and lGroupsContainKeep(live.Groups) then
+		return true
+	end
+	local squads = rawget(_G, "gv_Squads")
+	local squad = unitdata and unitdata.Squad and squads and squads[unitdata.Squad]
+	if type(squad) == "table" then
+		if STORY_SQUAD_KEEP_VANILLA_UNITS[squad.enemy_squad_def] then
+			return true
+		end
+		if squad.CurrentSector == "F5" and squad.enemy_squad_def == "LegionDefenders_Balanced_Easy" then
+			return true
+		end
+	end
+	return false
+end
+
+local function lWithSkipUnitRemap(fn)
+	local prev = rawget(_G, "g_JAZZ_NoMapsSkipUnitRemap") or false
+	rawset(_G, "g_JAZZ_NoMapsSkipUnitRemap", true)
+	local ok, result = pcall(fn)
+	rawset(_G, "g_JAZZ_NoMapsSkipUnitRemap", prev)
+	if not ok then
+		lLog("skip-unit-remap failed: " .. tostring(result))
+		return
+	end
+	return result
+end
+
+local function lProtectCaptainPierrot()
+	local function apply(unit, ud)
+		if type(unit) == "table" then
+			unit.conflict_ignore = true
+		end
+		if type(ud) == "table" then
+			ud.conflict_ignore = true
+		end
+	end
+	local units = rawget(_G, "g_Units")
+	local unitdata = rawget(_G, "gv_UnitData")
+	if type(units) == "table" then
+		for _, unit in pairs(units) do
+			if type(unit) == "table"
+				and (unit.class == "Captain_Pierrot" or unit.PersistentSessionId == "NPC_CaptainPierrot")
+			then
+				local ud = unitdata and unit.session_id and unitdata[unit.session_id]
+				apply(unit, ud)
+			end
+		end
+	end
+	if type(unitdata) == "table" then
+		local ud = unitdata.NPC_CaptainPierrot
+		if type(ud) == "table" then
+			apply(nil, ud)
+			local live = units and units.NPC_CaptainPierrot
+			if type(live) == "table" then
+				apply(live, ud)
+			end
+		end
+	end
+end
+
 local function lPickFromPool(pool, seed_key)
 	if type(pool) ~= "table" or #pool == 0 then
 		return false
@@ -618,6 +722,9 @@ local function lPickFromPool(pool, seed_key)
 end
 
 local function lRemapUnitTemplate(vanilla_id, seed_key)
+	if rawget(_G, "g_JAZZ_NoMapsSkipUnitRemap") then
+		return false
+	end
 	local family = lMatchUnitFamily(vanilla_id)
 	if not family then
 		return false
@@ -1082,11 +1189,25 @@ local function lInstallGenerateEnemySquadWrapper()
 	end
 	rawset(_G, "g_JAZZ_NoMapsGenerateEnemySquadWrapped", true)
 	rawset(_G, "g_JAZZ_NoMapsBaseGenerateEnemySquad", base)
-	function GenerateEnemySquad(squad_def_id, ...)
-		if lShouldRun() then
-			squad_def_id = lRemapSquadId(squad_def_id)
+	function GenerateEnemySquad(squad_def_id, sector_id, base_session_id, unit_template_ids, side, militiaTest)
+		if not lShouldRun() then
+			return g_JAZZ_NoMapsBaseGenerateEnemySquad(
+				squad_def_id, sector_id, base_session_id, unit_template_ids, side, militiaTest
+			)
 		end
-		return g_JAZZ_NoMapsBaseGenerateEnemySquad(squad_def_id, ...)
+		local skip = STORY_SQUAD_KEEP_VANILLA_UNITS[squad_def_id]
+			or (sector_id == "F5" and squad_def_id == "LegionDefenders_Balanced_Easy")
+		local mapped = skip and squad_def_id or lRemapSquadId(squad_def_id)
+		if skip then
+			return lWithSkipUnitRemap(function()
+				return g_JAZZ_NoMapsBaseGenerateEnemySquad(
+					mapped, sector_id, base_session_id, unit_template_ids, side, militiaTest
+				)
+			end)
+		end
+		return g_JAZZ_NoMapsBaseGenerateEnemySquad(
+			mapped, sector_id, base_session_id, unit_template_ids, side, militiaTest
+		)
 	end
 end
 
@@ -1605,6 +1726,7 @@ local function lRemapEnemyUnitTemplates()
 			and unitdata.Affiliation
 			and (unitdata.Affiliation == "Legion" or unitdata.Affiliation == "Thugs")
 			and lMatchUnitFamily(unitdata.class)
+			and not lShouldKeepVanillaUnitClass(session_id, unitdata)
 		then
 			to_remap[#to_remap + 1] = session_id
 		end
@@ -1657,7 +1779,15 @@ local function lInstallUnitMarkerWrapper()
 	end
 	rawset(_G, "JAZZ_NoMaps_BaseUnitMarkerSpawnObjects", UnitMarker.SpawnObjects)
 	rawset(_G, "JAZZ_NoMaps_UnitMarkerWrapped", true)
-	function UnitMarker:SpawnObjects(...)
+	function UnitMarker:SpawnObjects()
+		local skip = lShouldRun() and lMarkerHasQuestKeepGroup(self)
+		if skip then
+			local spawned = lWithSkipUnitRemap(function()
+				return JAZZ_NoMaps_BaseUnitMarkerSpawnObjects(self)
+			end)
+			lProtectCaptainPierrot()
+			return spawned
+		end
 		if lShouldRun() and self.UnitDataSpawnDefs then
 			for _, entry in ipairs(self.UnitDataSpawnDefs) do
 				if entry and type(entry.UnitDataDefId) == "string" then
@@ -1671,7 +1801,11 @@ local function lInstallUnitMarkerWrapper()
 				end
 			end
 		end
-		return JAZZ_NoMaps_BaseUnitMarkerSpawnObjects(self, ...)
+		local spawned = JAZZ_NoMaps_BaseUnitMarkerSpawnObjects(self)
+		if lShouldRun() then
+			lProtectCaptainPierrot()
+		end
+		return spawned
 	end
 end
 
@@ -1693,6 +1827,10 @@ local function lRefreshEnemyLoadouts()
 				goto next_unit
 			end
 			local unitdata = gv_UnitData and gv_UnitData[unit_id]
+			-- COMPAT-010: keep vanilla kits on story/quest Legion (A2 miners, F5 beach).
+			if unitdata and lShouldKeepVanillaUnitClass(unit_id, unitdata) then
+				goto next_unit
+			end
 			if unitdata
 				and not unitdata.IsMercenary
 				and unitdata.IsDead and not unitdata:IsDead()
@@ -1984,6 +2122,7 @@ function OnMsg.ExplorationStart()
 	end
 	JAZZ_NoMapsBootstrap(false)
 	lRefreshEnemyLoadouts()
+	lProtectCaptainPierrot()
 	lInjectContainerLoot()
 end
 
@@ -1992,5 +2131,6 @@ function OnMsg.CombatStart()
 		return
 	end
 	lRefreshEnemyLoadouts()
+	lProtectCaptainPierrot()
 	lInjectContainerLoot()
 end

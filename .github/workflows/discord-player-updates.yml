@@ -24,6 +24,10 @@ on:
         required: true
         default: false
         type: boolean
+      suite_packages:
+        description: "Comma-separated suite packages touched (e.g. jazz,jazz-units,jazz-nomaps)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -39,6 +43,7 @@ jobs:
       after_sha: ${{ github.event_name == 'workflow_dispatch' && inputs.after_sha || '' }}
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
       force_publish: ${{ github.event_name == 'workflow_dispatch' && inputs.force_publish || false }}
+      suite_packages: ${{ github.event_name == 'workflow_dispatch' && inputs.suite_packages || '' }}
       openai_model: ${{ vars.OPENAI_MODEL }}
       discord_update_role_id: ${{ vars.DISCORD_UPDATE_ROLE_ID }}
       discord_mention_update_role: ${{ vars.DISCORD_MENTION_UPDATE_ROLE }}
