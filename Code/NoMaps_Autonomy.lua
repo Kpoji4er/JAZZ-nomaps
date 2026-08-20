@@ -3,7 +3,7 @@
 -- Spec: jazz/docs/specs/active/JAZZ-COMPAT-002.md … JAZZ-COMPAT-011.md
 -- COMPAT-004: Major HQ force A20; adopt InitialSquads; seed POI; UnitData remap; tiered container loot.
 -- COMPAT-010: skip class-remap and gear refresh for G6 LegionWaterWell / A2 DiamondRedSquad / F5 beach InitialSquad; Pierrot conflict_ignore.
--- COMPAT-011: skip I1 Flag Hill markers + FortressPierre / Pierre / PierreGuard (H4).
+-- COMPAT-011: skip FortressPierre / Pierre / PierreGuard (H4). I1 Flag Hill is not a keep-vanilla sector.
 -- COMPAT-005: true T1-only Early squad + class-tier cap on gear major I (day-1 weight class).
 -- COMPAT-006/007: multi-outpost Voronoi + ai_region_rev; 007 = unbounded nearest-outpost (full surface coverage).
 
@@ -205,11 +205,6 @@ local STORY_SQUAD_KEEP_VANILLA_UNITS = {
 -- COMPAT-010: map-marker groups whose quest TCE keys off the group name.
 local QUEST_MARKER_GROUPS_KEEP_VANILLA = {
 	LegionWaterWell = true,
-}
-
--- COMPAT-011: whole-sector marker/live skip (I1 ForceConflict, no InitialSquads).
-local SECTORS_KEEP_VANILLA_UNITS = {
-	I1 = true,
 }
 
 local ROLE_LISTS = {
@@ -641,10 +636,6 @@ local function lMarkerHasQuestKeepGroup(marker)
 	return marker and lGroupsContainKeep(marker.Groups)
 end
 
-local function lSectorKeepsVanillaUnits(sector_id)
-	return type(sector_id) == "string" and SECTORS_KEEP_VANILLA_UNITS[sector_id] and true or false
-end
-
 local function lIsPierreStoryUnit(obj)
 	if type(obj) ~= "table" then
 		return false
@@ -674,10 +665,6 @@ local function lShouldKeepVanillaUnitClass(session_id, unitdata)
 	if lIsPierreStoryUnit(live) then
 		return true
 	end
-	-- I1: only skip units that are actually on the tactical map (not all satellite Legion).
-	if live and lSectorKeepsVanillaUnits(rawget(_G, "gv_CurrentSectorId")) then
-		return true
-	end
 	local squads = rawget(_G, "gv_Squads")
 	local squad = unitdata and unitdata.Squad and squads and squads[unitdata.Squad]
 	if type(squad) == "table" then
@@ -685,9 +672,6 @@ local function lShouldKeepVanillaUnitClass(session_id, unitdata)
 			return true
 		end
 		if squad.CurrentSector == "F5" and squad.enemy_squad_def == "LegionDefenders_Balanced_Easy" then
-			return true
-		end
-		if lSectorKeepsVanillaUnits(squad.CurrentSector) then
 			return true
 		end
 	end
@@ -700,7 +684,8 @@ local function lWithSkipUnitRemap(fn)
 	local ok, result = pcall(fn)
 	rawset(_G, "g_JAZZ_NoMapsSkipUnitRemap", prev)
 	if not ok then
-		lLog("skip-unit-remap failed: " .. tostring(result))
+		-- print, not CombatLog: a wrap cycle already has a huge stack; CombatLog overflows again.
+		print("[JAZZ Vanilla Maps] skip-unit-remap failed: " .. tostring(result))
 		return
 	end
 	return result
@@ -1232,7 +1217,6 @@ local function lInstallGenerateEnemySquadWrapper()
 		end
 		local skip = STORY_SQUAD_KEEP_VANILLA_UNITS[squad_def_id]
 			or (sector_id == "F5" and squad_def_id == "LegionDefenders_Balanced_Easy")
-			or lSectorKeepsVanillaUnits(sector_id)
 		local mapped = skip and squad_def_id or lRemapSquadId(squad_def_id)
 		if skip then
 			return lWithSkipUnitRemap(function()
@@ -1816,13 +1800,14 @@ local function lInstallUnitMarkerWrapper()
 	rawset(_G, "JAZZ_NoMaps_BaseUnitMarkerSpawnObjects", UnitMarker.SpawnObjects)
 	rawset(_G, "JAZZ_NoMaps_UnitMarkerWrapped", true)
 	function UnitMarker:SpawnObjects()
-		local skip = lShouldRun() and (
-			lMarkerHasQuestKeepGroup(self)
-			or lSectorKeepsVanillaUnits(rawget(_G, "gv_CurrentSectorId"))
-		)
+		local base = rawget(_G, "JAZZ_NoMaps_BaseUnitMarkerSpawnObjects")
+		if type(base) ~= "function" or base == UnitMarker.SpawnObjects then
+			return
+		end
+		local skip = lShouldRun() and lMarkerHasQuestKeepGroup(self)
 		if skip then
 			local spawned = lWithSkipUnitRemap(function()
-				return JAZZ_NoMaps_BaseUnitMarkerSpawnObjects(self)
+				return base(self)
 			end)
 			lProtectCaptainPierrot()
 			return spawned
@@ -1840,7 +1825,7 @@ local function lInstallUnitMarkerWrapper()
 				end
 			end
 		end
-		local spawned = JAZZ_NoMaps_BaseUnitMarkerSpawnObjects(self)
+		local spawned = base(self)
 		if lShouldRun() then
 			lProtectCaptainPierrot()
 		end
