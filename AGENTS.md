@@ -1,6 +1,6 @@
 # Правила пакета `jazz-nomaps` (display: **JAZZ Vanilla Maps**)
 
-Локальный overlay. Канон комплекта: `../jazz/AGENTS.md`. Спека: `../jazz/docs/specs/active/JAZZ-COMPAT-002.md`.
+Локальный overlay. Канон комплекта: `../jazz/AGENTS.md`. Навигация: `../jazz/.agents/docs/index.md`. Спеки: `../jazz/docs/specs/active/`. Совместимость: `../jazz/docs/specs/active/JAZZ-COMPAT-002.md`. При противоречии действует центральный контракт.
 
 ## Роль
 
@@ -13,6 +13,17 @@
 | assets + units + **maps** + jazz | assets + units + **nomaps** + jazz |
 
 При загруженном `FhNNYd` этот пакет **no-op**.
+
+## Когда что читать
+
+Не открывать все skills. Только совпавшая строка:
+
+| Задача | Открыть |
+| --- | --- |
+| Поведение, public ID, generated data, межпакетный контракт | spec в `../jazz/docs/specs/active/` + `$specify-jazz-change` |
+| Несколько пакетов / ownership | `../jazz/.agents/skills/work-on-jazz-mod/SKILL.md` |
+| Editor-generated / `items.lua` / `metadata.lua` | `$sync-jazz-generated-data` |
+| Player-facing эффект / drift technical | `../jazz/.cursor/rules/jazz-docs-sync.mdc` + `$document-jazz-systems` |
 
 ## Ограничения
 
